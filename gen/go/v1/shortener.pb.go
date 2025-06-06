@@ -209,10 +209,10 @@ const file_v1_shortener_proto_rawDesc = "" +
 	"\rGetURLRequest\x12\x12\n" +
 	"\x04hash\x18\x01 \x01(\tR\x04hash\"\"\n" +
 	"\x0eGetURLResponse\x12\x10\n" +
-	"\x03url\x18\x01 \x01(\tR\x03url2\x7f\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url2}\n" +
 	"\x13URLShortenerService\x125\n" +
-	"\bShortURL\x12\x13.v1.ShortURLRequest\x1a\x14.v1.ShortURLResponse\x121\n" +
-	"\x06GetURL\x12\x11.v1.GetURLRequest\x1a\x14.v1.ShortURLResponseB.Z,github.com/misshanya/url-shortener/gen/go/v1b\x06proto3"
+	"\bShortURL\x12\x13.v1.ShortURLRequest\x1a\x14.v1.ShortURLResponse\x12/\n" +
+	"\x06GetURL\x12\x11.v1.GetURLRequest\x1a\x12.v1.GetURLResponseB.Z,github.com/misshanya/url-shortener/gen/go/v1b\x06proto3"
 
 var (
 	file_v1_shortener_proto_rawDescOnce sync.Once
@@ -237,7 +237,7 @@ var file_v1_shortener_proto_depIdxs = []int32{
 	0, // 0: v1.URLShortenerService.ShortURL:input_type -> v1.ShortURLRequest
 	2, // 1: v1.URLShortenerService.GetURL:input_type -> v1.GetURLRequest
 	1, // 2: v1.URLShortenerService.ShortURL:output_type -> v1.ShortURLResponse
-	1, // 3: v1.URLShortenerService.GetURL:output_type -> v1.ShortURLResponse
+	3, // 3: v1.URLShortenerService.GetURL:output_type -> v1.GetURLResponse
 	2, // [2:4] is the sub-list for method output_type
 	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name

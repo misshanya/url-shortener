@@ -28,7 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type URLShortenerServiceClient interface {
 	ShortURL(ctx context.Context, in *ShortURLRequest, opts ...grpc.CallOption) (*ShortURLResponse, error)
-	GetURL(ctx context.Context, in *GetURLRequest, opts ...grpc.CallOption) (*ShortURLResponse, error)
+	GetURL(ctx context.Context, in *GetURLRequest, opts ...grpc.CallOption) (*GetURLResponse, error)
 }
 
 type uRLShortenerServiceClient struct {
@@ -49,9 +49,9 @@ func (c *uRLShortenerServiceClient) ShortURL(ctx context.Context, in *ShortURLRe
 	return out, nil
 }
 
-func (c *uRLShortenerServiceClient) GetURL(ctx context.Context, in *GetURLRequest, opts ...grpc.CallOption) (*ShortURLResponse, error) {
+func (c *uRLShortenerServiceClient) GetURL(ctx context.Context, in *GetURLRequest, opts ...grpc.CallOption) (*GetURLResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ShortURLResponse)
+	out := new(GetURLResponse)
 	err := c.cc.Invoke(ctx, URLShortenerService_GetURL_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -64,7 +64,7 @@ func (c *uRLShortenerServiceClient) GetURL(ctx context.Context, in *GetURLReques
 // for forward compatibility.
 type URLShortenerServiceServer interface {
 	ShortURL(context.Context, *ShortURLRequest) (*ShortURLResponse, error)
-	GetURL(context.Context, *GetURLRequest) (*ShortURLResponse, error)
+	GetURL(context.Context, *GetURLRequest) (*GetURLResponse, error)
 	mustEmbedUnimplementedURLShortenerServiceServer()
 }
 
@@ -78,7 +78,7 @@ type UnimplementedURLShortenerServiceServer struct{}
 func (UnimplementedURLShortenerServiceServer) ShortURL(context.Context, *ShortURLRequest) (*ShortURLResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ShortURL not implemented")
 }
-func (UnimplementedURLShortenerServiceServer) GetURL(context.Context, *GetURLRequest) (*ShortURLResponse, error) {
+func (UnimplementedURLShortenerServiceServer) GetURL(context.Context, *GetURLRequest) (*GetURLResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetURL not implemented")
 }
 func (UnimplementedURLShortenerServiceServer) mustEmbedUnimplementedURLShortenerServiceServer() {}
