@@ -109,6 +109,94 @@ func (x *ShortURLResponse) GetUrl() string {
 	return ""
 }
 
+type GetURLRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Hash          string                 `protobuf:"bytes,1,opt,name=hash,proto3" json:"hash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetURLRequest) Reset() {
+	*x = GetURLRequest{}
+	mi := &file_v1_shortener_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetURLRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetURLRequest) ProtoMessage() {}
+
+func (x *GetURLRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_shortener_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetURLRequest.ProtoReflect.Descriptor instead.
+func (*GetURLRequest) Descriptor() ([]byte, []int) {
+	return file_v1_shortener_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *GetURLRequest) GetHash() string {
+	if x != nil {
+		return x.Hash
+	}
+	return ""
+}
+
+type GetURLResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Url           string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetURLResponse) Reset() {
+	*x = GetURLResponse{}
+	mi := &file_v1_shortener_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetURLResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetURLResponse) ProtoMessage() {}
+
+func (x *GetURLResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_shortener_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetURLResponse.ProtoReflect.Descriptor instead.
+func (*GetURLResponse) Descriptor() ([]byte, []int) {
+	return file_v1_shortener_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *GetURLResponse) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
 var File_v1_shortener_proto protoreflect.FileDescriptor
 
 const file_v1_shortener_proto_rawDesc = "" +
@@ -117,9 +205,14 @@ const file_v1_shortener_proto_rawDesc = "" +
 	"\x0fShortURLRequest\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\"$\n" +
 	"\x10ShortURLResponse\x12\x10\n" +
-	"\x03url\x18\x01 \x01(\tR\x03url2L\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\"#\n" +
+	"\rGetURLRequest\x12\x12\n" +
+	"\x04hash\x18\x01 \x01(\tR\x04hash\"\"\n" +
+	"\x0eGetURLResponse\x12\x10\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url2\x7f\n" +
 	"\x13URLShortenerService\x125\n" +
-	"\bShortURL\x12\x13.v1.ShortURLRequest\x1a\x14.v1.ShortURLResponseB.Z,github.com/misshanya/url-shortener/gen/go/v1b\x06proto3"
+	"\bShortURL\x12\x13.v1.ShortURLRequest\x1a\x14.v1.ShortURLResponse\x121\n" +
+	"\x06GetURL\x12\x11.v1.GetURLRequest\x1a\x14.v1.ShortURLResponseB.Z,github.com/misshanya/url-shortener/gen/go/v1b\x06proto3"
 
 var (
 	file_v1_shortener_proto_rawDescOnce sync.Once
@@ -133,16 +226,20 @@ func file_v1_shortener_proto_rawDescGZIP() []byte {
 	return file_v1_shortener_proto_rawDescData
 }
 
-var file_v1_shortener_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_v1_shortener_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_v1_shortener_proto_goTypes = []any{
 	(*ShortURLRequest)(nil),  // 0: v1.ShortURLRequest
 	(*ShortURLResponse)(nil), // 1: v1.ShortURLResponse
+	(*GetURLRequest)(nil),    // 2: v1.GetURLRequest
+	(*GetURLResponse)(nil),   // 3: v1.GetURLResponse
 }
 var file_v1_shortener_proto_depIdxs = []int32{
 	0, // 0: v1.URLShortenerService.ShortURL:input_type -> v1.ShortURLRequest
-	1, // 1: v1.URLShortenerService.ShortURL:output_type -> v1.ShortURLResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	2, // 1: v1.URLShortenerService.GetURL:input_type -> v1.GetURLRequest
+	1, // 2: v1.URLShortenerService.ShortURL:output_type -> v1.ShortURLResponse
+	1, // 3: v1.URLShortenerService.GetURL:output_type -> v1.ShortURLResponse
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -159,7 +256,7 @@ func file_v1_shortener_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_v1_shortener_proto_rawDesc), len(file_v1_shortener_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

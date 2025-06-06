@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	URLShortenerService_ShortURL_FullMethodName = "/v1.URLShortenerService/ShortURL"
+	URLShortenerService_GetURL_FullMethodName   = "/v1.URLShortenerService/GetURL"
 )
 
 // URLShortenerServiceClient is the client API for URLShortenerService service.
@@ -27,6 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type URLShortenerServiceClient interface {
 	ShortURL(ctx context.Context, in *ShortURLRequest, opts ...grpc.CallOption) (*ShortURLResponse, error)
+	GetURL(ctx context.Context, in *GetURLRequest, opts ...grpc.CallOption) (*ShortURLResponse, error)
 }
 
 type uRLShortenerServiceClient struct {
@@ -47,11 +49,22 @@ func (c *uRLShortenerServiceClient) ShortURL(ctx context.Context, in *ShortURLRe
 	return out, nil
 }
 
+func (c *uRLShortenerServiceClient) GetURL(ctx context.Context, in *GetURLRequest, opts ...grpc.CallOption) (*ShortURLResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ShortURLResponse)
+	err := c.cc.Invoke(ctx, URLShortenerService_GetURL_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // URLShortenerServiceServer is the server API for URLShortenerService service.
 // All implementations must embed UnimplementedURLShortenerServiceServer
 // for forward compatibility.
 type URLShortenerServiceServer interface {
 	ShortURL(context.Context, *ShortURLRequest) (*ShortURLResponse, error)
+	GetURL(context.Context, *GetURLRequest) (*ShortURLResponse, error)
 	mustEmbedUnimplementedURLShortenerServiceServer()
 }
 
@@ -64,6 +77,9 @@ type UnimplementedURLShortenerServiceServer struct{}
 
 func (UnimplementedURLShortenerServiceServer) ShortURL(context.Context, *ShortURLRequest) (*ShortURLResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ShortURL not implemented")
+}
+func (UnimplementedURLShortenerServiceServer) GetURL(context.Context, *GetURLRequest) (*ShortURLResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetURL not implemented")
 }
 func (UnimplementedURLShortenerServiceServer) mustEmbedUnimplementedURLShortenerServiceServer() {}
 func (UnimplementedURLShortenerServiceServer) testEmbeddedByValue()                             {}
@@ -104,6 +120,24 @@ func _URLShortenerService_ShortURL_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _URLShortenerService_GetURL_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetURLRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(URLShortenerServiceServer).GetURL(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: URLShortenerService_GetURL_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(URLShortenerServiceServer).GetURL(ctx, req.(*GetURLRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // URLShortenerService_ServiceDesc is the grpc.ServiceDesc for URLShortenerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -114,6 +148,10 @@ var URLShortenerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ShortURL",
 			Handler:    _URLShortenerService_ShortURL_Handler,
+		},
+		{
+			MethodName: "GetURL",
+			Handler:    _URLShortenerService_GetURL_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
