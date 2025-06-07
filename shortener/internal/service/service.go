@@ -53,7 +53,7 @@ func (s *Service) GetURL(ctx context.Context, short string) (string, error) {
 	url, err := s.pr.GetURL(ctx, short)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return "", errors.New("short not exist")
+			return "", status.Error(codes.NotFound, "short not found")
 		}
 		slog.Error("failed to get short by url", "error", err)
 		return "", status.Error(codes.Internal, "failed to get short by url")
