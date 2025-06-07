@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/misshanya/url-shortener/shortener/internal/config"
@@ -18,7 +19,14 @@ import (
 	"os"
 )
 
-func Start(cfg *config.Config) {
+// InterceptorLogger adapts slog logger to interceptor logger.
+func InterceptorLogger(l *slog.Logger) logging.Logger {
+	return logging.LoggerFunc(func(ctx context.Context, lvl logging.Level, msg string, fields ...any) {
+		l.Log(ctx, slog.Level(lvl), msg, fields...)
+	})
+}
+
+func Start(cfg *config.Config, logger *slog.Logger) {
 	ctx := context.Background()
 
 	// Add a listener address
@@ -44,15 +52,24 @@ func Start(cfg *config.Config) {
 	// Init SQL queries
 	queries := storage.New(conn)
 
-	// Start the grpc server
-	grpcServer := grpc.NewServer()
+	// Configure interceptor logger
+	opts := []logging.Option{
+		logging.WithLogOnEvents(logging.StartCall, logging.FinishCall),
+	}
+
+	// Create a gRPC server
+	grpcServer := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			logging.UnaryServerInterceptor(InterceptorLogger(logger), opts...),
+		),
+	)
 
 	repo := repository.NewPostgresRepo(queries)
-	svc := service.New(repo)
+	svc := service.New(repo, logger)
 
 	handler.NewHandler(grpcServer, svc)
 
-	slog.Info("starting server", slog.String("addr", cfg.Server.Addr))
+	logger.Info("starting server", slog.String("addr", cfg.Server.Addr))
 	log.Fatal(grpcServer.Serve(lis))
 }
 

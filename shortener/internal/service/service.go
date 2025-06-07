@@ -19,10 +19,11 @@ type postgresRepo interface {
 }
 type Service struct {
 	pr postgresRepo
+	l  *slog.Logger
 }
 
-func New(repo postgresRepo) *Service {
-	return &Service{pr: repo}
+func New(repo postgresRepo, logger *slog.Logger) *Service {
+	return &Service{pr: repo, l: logger}
 }
 
 func (s *Service) ShortURL(ctx context.Context, short *models.Short) error {
@@ -31,18 +32,18 @@ func (s *Service) ShortURL(ctx context.Context, short *models.Short) error {
 		short.Short = sh
 		return nil
 	} else if !errors.Is(err, sql.ErrNoRows) {
-		slog.Error("failed to get short by url", "error", err)
+		s.l.Error("failed to get short by url", "error", err)
 		return status.Error(codes.Internal, "failed to get short by url")
 	}
 
-	slog.Info("shorting url", slog.String("url", short.URL))
+	s.l.Info("shorting url", slog.String("url", short.URL))
 
 	// Hash via SHA256
 	hash := sha256.Sum256([]byte(short.URL))
 	short.Short = fmt.Sprintf("%x", hash)[:10]
 
 	if err := s.pr.StoreShort(ctx, *short); err != nil {
-		slog.Error("failed to store short by url", "error", err)
+		s.l.Error("failed to store short by url", "error", err)
 		return status.Error(codes.Internal, "failed to store short")
 	}
 
@@ -55,7 +56,7 @@ func (s *Service) GetURL(ctx context.Context, short string) (string, error) {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", status.Error(codes.NotFound, "short not found")
 		}
-		slog.Error("failed to get short by url", "error", err)
+		s.l.Error("failed to get short by url", "error", err)
 		return "", status.Error(codes.Internal, "failed to get short by url")
 	}
 

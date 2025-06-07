@@ -4,6 +4,7 @@ go 1.24
 
 require (
 	github.com/google/uuid v1.6.0
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/misshanya/url-shortener v0.0.0-20250606181357-8142b9bb6daa
