@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/misshanya/url-shortener/gateway/internal/config"
@@ -11,9 +12,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"log/slog"
 	"os"
+	"time"
 )
 
-func Start(cfg *config.Config) {
+func Start(cfg *config.Config, logger *slog.Logger) {
 	// Init gRPC connection to the shortener service
 	grpcConn, err := grpc.NewClient(cfg.GRPCClient.ServerAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -39,7 +41,29 @@ func Start(cfg *config.Config) {
 	}))
 
 	// Logger
-	e.Use(middleware.Logger())
+	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogStatus:   true,
+		LogURI:      true,
+		LogError:    true,
+		HandleError: true,
+		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+			if v.Error == nil {
+				logger.LogAttrs(context.Background(), slog.LevelInfo, "REQUEST",
+					slog.String("uri", v.URI),
+					slog.Int("status", v.Status),
+					slog.String("latency", time.Now().Sub(v.StartTime).String()),
+				)
+			} else {
+				logger.LogAttrs(context.Background(), slog.LevelError, "REQUEST_ERROR",
+					slog.String("uri", v.URI),
+					slog.Int("status", v.Status),
+					slog.String("latency", time.Now().Sub(v.StartTime).String()),
+					slog.String("err", v.Error.Error()),
+				)
+			}
+			return nil
+		},
+	}))
 
 	// Recoverer
 	e.Use(middleware.Recover())
@@ -48,7 +72,7 @@ func Start(cfg *config.Config) {
 	e.POST("/shorten", shortenerHandler.ShortURL)
 	e.GET("/:hash", shortenerHandler.UnshortURL)
 
-	slog.Info("starting server", slog.String("addr", cfg.Server.Addr))
+	logger.Info("starting server", slog.String("addr", cfg.Server.Addr))
 
 	// Start the server
 	e.Logger.Fatal(e.Start(cfg.Server.Addr))
