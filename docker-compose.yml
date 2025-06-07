@@ -21,8 +21,6 @@ services:
     networks:
       - db
       - shortener
-    ports:
-      - "5001:5001"
     depends_on:
       - shortener_db
 
