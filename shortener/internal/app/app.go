@@ -52,7 +52,7 @@ func Start(cfg *config.Config) {
 
 	handler.NewHandler(grpcServer, svc)
 
-	slog.Info("starting server")
+	slog.Info("starting server", slog.String("addr", cfg.Server.Addr))
 	log.Fatal(grpcServer.Serve(lis))
 }
 
