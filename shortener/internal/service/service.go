@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/misshanya/url-shortener/shortener/internal/models"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"log/slog"
 )
 
@@ -30,7 +32,7 @@ func (s *Service) ShortURL(ctx context.Context, short *models.Short) error {
 		return nil
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		slog.Error("failed to get short by url", "error", err)
-		return errors.New("something went wrong")
+		return status.Error(codes.Internal, "failed to get short by url")
 	}
 
 	slog.Info("shorting url", slog.String("url", short.URL))
@@ -41,7 +43,7 @@ func (s *Service) ShortURL(ctx context.Context, short *models.Short) error {
 
 	if err := s.pr.StoreShort(ctx, *short); err != nil {
 		slog.Error("failed to store short by url", "error", err)
-		return errors.New("something went wrong")
+		return status.Error(codes.Internal, "failed to store short")
 	}
 
 	return nil
@@ -54,7 +56,7 @@ func (s *Service) GetURL(ctx context.Context, short string) (string, error) {
 			return "", errors.New("short not exist")
 		}
 		slog.Error("failed to get short by url", "error", err)
-		return "", errors.New("something went wrong")
+		return "", status.Error(codes.Internal, "failed to get short by url")
 	}
 
 	return url, nil
