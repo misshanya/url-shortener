@@ -5,7 +5,9 @@ WORKDIR /app
 COPY . .
 
 RUN go mod download
-RUN go build -o shortener ./cmd/
+
+ENV GOCACHE=/root/.cache/go-build
+RUN --mount=type=cache,target="/root/.cache/go-build" go build -o shortener ./cmd/
 
 FROM alpine:latest AS runner
 
