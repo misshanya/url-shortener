@@ -1,0 +1,40 @@
+version: '3'
+
+networks:
+  db:
+    driver: bridge
+  shortener:
+    driver: bridge
+
+volumes:
+  shortener_db_data:
+
+services:
+  shortener:
+    container_name: shortener_service
+    build:
+      context: ./shortener
+    restart: unless-stopped
+    environment:
+      SERVER_ADDR: "0.0.0.0:${SHORTENER_SERVER_PORT}"
+      POSTGRES_URL: "postgres://${SHORTENER_PG_USER}:${SHORTENER_PG_PASSWORD}@shortener_db:5432/${SHORTENER_PG_DB}"
+    networks:
+      - db
+      - shortener
+    ports:
+      - "5001:5001"
+    depends_on:
+      - shortener_db
+
+  shortener_db:
+    container_name: shortener_db
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: "${SHORTENER_PG_USER}"
+      POSTGRES_PASSWORD: "${SHORTENER_PG_PASSWORD}"
+      POSTGRES_DB: "${SHORTENER_PG_DB}"
+    volumes:
+      - shortener_db_data:/var/lib/postgresql
+    networks:
+      - db
