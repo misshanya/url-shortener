@@ -22,8 +22,15 @@ type postgres struct {
 func NewConfig() *Config {
 	var cfg Config
 
+	// Read .env file
+	// If failed to read file, will try ReadEnv
+	if err := cleanenv.ReadConfig(".env", &cfg); err == nil {
+		return &cfg
+	}
+
+	// Read env
 	if err := cleanenv.ReadEnv(&cfg); err != nil {
-		slog.Error("failed to read config", "error", err)
+		slog.Error("failed to read env vars", "error", err)
 		os.Exit(1)
 	}
 
