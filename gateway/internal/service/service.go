@@ -38,6 +38,11 @@ func mapGRPCError(err error) *models.HTTPError {
 			Code:    http.StatusNotFound,
 			Message: s.Message(),
 		}
+	case codes.InvalidArgument:
+		return &models.HTTPError{
+			Code:    http.StatusBadRequest,
+			Message: s.Message(),
+		}
 	}
 
 	return nil
