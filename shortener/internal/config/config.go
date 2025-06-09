@@ -19,7 +19,7 @@ type postgres struct {
 	URL string `env:"POSTGRES_URL" env-required:"true"`
 }
 
-func NewConfig() *Config {
+func NewConfig(logger *slog.Logger) *Config {
 	var cfg Config
 
 	// Read .env file
@@ -30,7 +30,7 @@ func NewConfig() *Config {
 
 	// Read env
 	if err := cleanenv.ReadEnv(&cfg); err != nil {
-		slog.Error("failed to read env vars", "error", err)
+		logger.Error("failed to read env vars", "error", err)
 		os.Exit(1)
 	}
 

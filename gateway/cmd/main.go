@@ -8,8 +8,8 @@ import (
 )
 
 func main() {
-	cfg := config.NewConfig()
 	logger := setupLogger()
+	cfg := config.NewConfig(logger)
 	app.Start(cfg, logger)
 }
 
