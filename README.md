@@ -34,7 +34,7 @@ It tooks the URL in inline mode. For example, `@mybot https://github.com/misshan
 ### Prerequisites
 
 - Docker
-- Go 1.24+
+- Go 1.24+ (if you want to build without Docker)
 - Telegram bot token
 
 ### Run
@@ -60,7 +60,8 @@ docker compose up -d
 
 ### Gateway's usage
 
-**Short** - `POST /shorten` with the following body: 
+**Short** - `POST /shorten` with the following body:
+
  ```json
  {
    "url": "your-url-to-short"
