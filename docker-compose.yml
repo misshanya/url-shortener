@@ -52,3 +52,17 @@ services:
       - shortener
     depends_on:
       - shortener
+
+  bot:
+    container_name: shortener_tg-bot
+    build:
+      context: ./bot
+    restart: unless-stopped
+    environment:
+      PUBLIC_HOST: "${PUBLIC_HOST}"
+      GRPC_SERVER_ADDR: "shortener_service:${SHORTENER_SERVER_PORT}"
+      BOT_TOKEN: "${TG_BOT_TOKEN}"
+    networks:
+      - shortener
+    depends_on:
+      - gateway
