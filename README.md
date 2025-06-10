@@ -60,8 +60,6 @@ docker compose up -d
 
 ### Gateway's usage
 
----
-
 **Short** - `POST /shorten` with the following body: 
  ```json
  {
@@ -69,11 +67,7 @@ docker compose up -d
  }
  ```
 
----
-
 **Unshort** - `GET /{hash}`
-
----
 
 ## License
 
