@@ -51,12 +51,14 @@ func Start(cfg *config.Config, logger *slog.Logger) {
 				logger.LogAttrs(context.Background(), slog.LevelInfo, "REQUEST",
 					slog.String("uri", v.URI),
 					slog.Int("status", v.Status),
+					slog.String("ip", v.RemoteIP),
 					slog.String("latency", time.Now().Sub(v.StartTime).String()),
 				)
 			} else {
 				logger.LogAttrs(context.Background(), slog.LevelError, "REQUEST_ERROR",
 					slog.String("uri", v.URI),
 					slog.Int("status", v.Status),
+					slog.String("ip", v.RemoteIP),
 					slog.String("latency", time.Now().Sub(v.StartTime).String()),
 					slog.String("err", v.Error.Error()),
 				)
