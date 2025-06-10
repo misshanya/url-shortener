@@ -6,7 +6,7 @@ require (
 	github.com/go-telegram/bot v1.15.0
 	github.com/google/uuid v1.6.0
 	github.com/ilyakaznacheev/cleanenv v1.5.0
-	github.com/misshanya/url-shortener v0.0.0-20250609160637-32d537b5978d
+	github.com/misshanya/url-shortener v0.0.0-20250610224221-929189afe478
 )
 
 require (

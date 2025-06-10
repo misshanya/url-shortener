@@ -40,6 +40,8 @@ github.com/mfridman/interpolate v0.0.2 h1:pnuTK7MQIxxFz1Gr+rjSIx9u7qVjf5VOoM/u6B
 github.com/mfridman/interpolate v0.0.2/go.mod h1:p+7uk6oE07mpE/Ik1b8EckO0O4ZXiGAfshKBWLUM9Xg=
 github.com/misshanya/url-shortener v0.0.0-20250606181357-8142b9bb6daa h1:mgI+EwRrSrS8bMyOGINTKAMeBsLWEoeEBh9FsJGinxs=
 github.com/misshanya/url-shortener v0.0.0-20250606181357-8142b9bb6daa/go.mod h1:JB0WIGISSLgeMm9mt4ZXN3gszX6VbuXzt0qraiHQR9E=
+github.com/misshanya/url-shortener v0.0.0-20250610224221-929189afe478 h1:a8sLIdTvFbkqe2j/hnS1BMqkrX1YhUV+cMEIvI5P0Pw=
+github.com/misshanya/url-shortener v0.0.0-20250610224221-929189afe478/go.mod h1:JB0WIGISSLgeMm9mt4ZXN3gszX6VbuXzt0qraiHQR9E=
 github.com/ncruces/go-strftime v0.1.9 h1:bY0MQC28UADQmHmaF5dgpLmImcShSi2kHU9XLdhx/f4=
 github.com/ncruces/go-strftime v0.1.9/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=

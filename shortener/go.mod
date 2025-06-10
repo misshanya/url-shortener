@@ -7,7 +7,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/jackc/pgx/v5 v5.7.5
-	github.com/misshanya/url-shortener v0.0.0-20250606181357-8142b9bb6daa
+	github.com/misshanya/url-shortener v0.0.0-20250610224221-929189afe478
 	github.com/pressly/goose/v3 v3.24.3
 	google.golang.org/grpc v1.73.0
 )

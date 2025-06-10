@@ -26,6 +26,8 @@ github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWE
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/misshanya/url-shortener v0.0.0-20250606181357-8142b9bb6daa h1:mgI+EwRrSrS8bMyOGINTKAMeBsLWEoeEBh9FsJGinxs=
 github.com/misshanya/url-shortener v0.0.0-20250606181357-8142b9bb6daa/go.mod h1:JB0WIGISSLgeMm9mt4ZXN3gszX6VbuXzt0qraiHQR9E=
+github.com/misshanya/url-shortener v0.0.0-20250610224221-929189afe478 h1:a8sLIdTvFbkqe2j/hnS1BMqkrX1YhUV+cMEIvI5P0Pw=
+github.com/misshanya/url-shortener v0.0.0-20250610224221-929189afe478/go.mod h1:JB0WIGISSLgeMm9mt4ZXN3gszX6VbuXzt0qraiHQR9E=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/testify v1.10.0 h1:Xv5erBjTwe/5IxqUQTdXv5kgmIvbHo3QQyRwhJsOfJA=

@@ -1,9 +1,9 @@
 package dto
 
-type ShortURLRequest struct {
+type ShortenURLRequest struct {
 	URL string `json:"url"`
 }
 
-type ShortURLResponse struct {
+type ShortenURLResponse struct {
 	URL string `json:"url"`
 }

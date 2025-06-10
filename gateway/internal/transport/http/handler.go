@@ -9,8 +9,8 @@ import (
 )
 
 type service interface {
-	ShortURL(ctx context.Context, url string) (string, *models.HTTPError)
-	UnshortURL(ctx context.Context, hash string) (string, *models.HTTPError)
+	ShortenURL(ctx context.Context, url string) (string, *models.HTTPError)
+	UnshortenURL(ctx context.Context, hash string) (string, *models.HTTPError)
 }
 
 type Handler struct {
@@ -21,29 +21,29 @@ func NewHandler(service service) *Handler {
 	return &Handler{service: service}
 }
 
-func (h *Handler) ShortURL(c echo.Context) error {
+func (h *Handler) ShortenURL(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	var req dto.ShortURLRequest
+	var req dto.ShortenURLRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	url, httpErr := h.service.ShortURL(ctx, req.URL)
+	url, httpErr := h.service.ShortenURL(ctx, req.URL)
 	if httpErr != nil {
 		return echo.NewHTTPError(httpErr.Code, httpErr.Message)
 	}
 
-	resp := &dto.ShortURLResponse{URL: url}
+	resp := &dto.ShortenURLResponse{URL: url}
 	return c.JSON(http.StatusCreated, resp)
 }
 
-func (h *Handler) UnshortURL(c echo.Context) error {
+func (h *Handler) UnshortenURL(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	hash := c.Param("hash")
 
-	url, httpErr := h.service.UnshortURL(ctx, hash)
+	url, httpErr := h.service.UnshortenURL(ctx, hash)
 	if httpErr != nil {
 		return echo.NewHTTPError(httpErr.Code, httpErr.Message)
 	}

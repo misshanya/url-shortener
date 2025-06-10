@@ -71,8 +71,8 @@ func Start(cfg *config.Config, logger *slog.Logger) {
 	e.Use(middleware.Recover())
 
 	// Connect handlers to the routes
-	e.POST("/shorten", shortenerHandler.ShortURL)
-	e.GET("/:hash", shortenerHandler.UnshortURL)
+	e.POST("/shorten", shortenerHandler.ShortenURL)
+	e.GET("/:hash", shortenerHandler.UnshortenURL)
 
 	logger.Info("starting server", slog.String("addr", cfg.Server.Addr))
 

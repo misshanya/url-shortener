@@ -10,7 +10,7 @@ import (
 )
 
 type service interface {
-	ShortURL(ctx context.Context, url string) (string, error)
+	ShortenURL(ctx context.Context, url string) (string, error)
 }
 
 type Handler struct {
@@ -43,7 +43,7 @@ func (h *Handler) Default(ctx context.Context, b *bot.Bot, update *models.Update
 	}
 
 	// Short URL
-	short, err := h.s.ShortURL(ctx, update.InlineQuery.Query)
+	short, err := h.s.ShortenURL(ctx, update.InlineQuery.Query)
 	if err != nil {
 		return
 	}
@@ -54,7 +54,7 @@ func (h *Handler) Default(ctx context.Context, b *bot.Bot, update *models.Update
 		Results: []models.InlineQueryResult{
 			&models.InlineQueryResultArticle{
 				ID:                  uuid.NewString(),
-				Title:               "Shorted URL",
+				Title:               "Shortened URL",
 				URL:                 short,
 				InputMessageContent: models.InputTextMessageContent{MessageText: short},
 			},

@@ -5,7 +5,7 @@ go 1.24
 require (
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/labstack/echo/v4 v4.13.4
-	github.com/misshanya/url-shortener v0.0.0-20250606181357-8142b9bb6daa
+	github.com/misshanya/url-shortener v0.0.0-20250610224221-929189afe478
 	google.golang.org/grpc v1.73.0
 )
 

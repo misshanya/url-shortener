@@ -11,7 +11,7 @@ import (
 )
 
 type service interface {
-	ShortURL(ctx context.Context, short *models.Short) error
+	ShortenURL(ctx context.Context, short *models.Short) error
 	GetURL(ctx context.Context, short string) (string, error)
 }
 
@@ -25,7 +25,7 @@ func NewHandler(grpcServer *grpc.Server, service service) {
 	pb.RegisterURLShortenerServiceServer(grpcServer, shortenerGrpc)
 }
 
-func (h *Handler) ShortURL(ctx context.Context, req *pb.ShortURLRequest) (*pb.ShortURLResponse, error) {
+func (h *Handler) ShortenURL(ctx context.Context, req *pb.ShortenURLRequest) (*pb.ShortenURLResponse, error) {
 	short := models.Short{URL: req.Url}
 
 	// Validate URL
@@ -33,11 +33,11 @@ func (h *Handler) ShortURL(ctx context.Context, req *pb.ShortURLRequest) (*pb.Sh
 		return nil, status.Error(codes.InvalidArgument, "bad URL")
 	}
 
-	if err := h.service.ShortURL(ctx, &short); err != nil {
+	if err := h.service.ShortenURL(ctx, &short); err != nil {
 		return nil, err
 	}
 
-	return &pb.ShortURLResponse{Url: short.Short}, nil
+	return &pb.ShortenURLResponse{Url: short.Short}, nil
 }
 
 func (h *Handler) GetURL(ctx context.Context, req *pb.GetURLRequest) (*pb.GetURLResponse, error) {

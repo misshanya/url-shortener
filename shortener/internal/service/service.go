@@ -26,7 +26,7 @@ func New(repo postgresRepo, logger *slog.Logger) *Service {
 	return &Service{pr: repo, l: logger}
 }
 
-func (s *Service) ShortURL(ctx context.Context, short *models.Short) error {
+func (s *Service) ShortenURL(ctx context.Context, short *models.Short) error {
 	// Try to get shorted by URL, and if it exists, return
 	if sh, err := s.pr.GetShort(ctx, short.URL); err == nil {
 		short.Short = sh
@@ -36,7 +36,7 @@ func (s *Service) ShortURL(ctx context.Context, short *models.Short) error {
 		return status.Error(codes.Internal, "failed to get short by url")
 	}
 
-	s.l.Info("shorting url", slog.String("url", short.URL))
+	s.l.Info("shortening url", slog.String("url", short.URL))
 
 	// Hash via SHA256
 	hash := sha256.Sum256([]byte(short.URL))

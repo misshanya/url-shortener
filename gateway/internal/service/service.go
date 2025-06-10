@@ -48,8 +48,8 @@ func mapGRPCError(err error) *models.HTTPError {
 	return nil
 }
 
-func (s *Service) ShortURL(ctx context.Context, url string) (string, *models.HTTPError) {
-	resp, err := s.client.ShortURL(ctx, &pb.ShortURLRequest{Url: url})
+func (s *Service) ShortenURL(ctx context.Context, url string) (string, *models.HTTPError) {
+	resp, err := s.client.ShortenURL(ctx, &pb.ShortenURLRequest{Url: url})
 	if httpErr := mapGRPCError(err); httpErr != nil {
 		return "", &models.HTTPError{
 			Code:    httpErr.Code,
@@ -61,7 +61,7 @@ func (s *Service) ShortURL(ctx context.Context, url string) (string, *models.HTT
 	return short, nil
 }
 
-func (s *Service) UnshortURL(ctx context.Context, hash string) (string, *models.HTTPError) {
+func (s *Service) UnshortenURL(ctx context.Context, hash string) (string, *models.HTTPError) {
 	resp, err := s.client.GetURL(ctx, &pb.GetURLRequest{Hash: hash})
 	if httpErr := mapGRPCError(err); httpErr != nil {
 		return "", &models.HTTPError{

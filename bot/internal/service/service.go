@@ -16,10 +16,10 @@ func New(client pb.URLShortenerServiceClient, publicHost string, logger *slog.Lo
 	return &Service{client: client, publicHost: publicHost, l: logger}
 }
 
-func (s *Service) ShortURL(ctx context.Context, url string) (string, error) {
-	resp, err := s.client.ShortURL(ctx, &pb.ShortURLRequest{Url: url})
+func (s *Service) ShortenURL(ctx context.Context, url string) (string, error) {
+	resp, err := s.client.ShortenURL(ctx, &pb.ShortenURLRequest{Url: url})
 	if err != nil {
-		s.l.Error("failed to short url", slog.Any("error", err))
+		s.l.Error("failed to shorten url", slog.Any("error", err))
 		return "", err
 	}
 
