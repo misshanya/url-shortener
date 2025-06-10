@@ -27,7 +27,7 @@ Bot only shorts the URL, unshorting process is on `gateway`.
 
 Shorting process is same as the `gateway`'s one: walk to the `shortener`, get hash, connect public host.
 
-It tooks the URL in inline mode. For example, `@mybot https://github.com/misshanya/url-shortener`. And you will get the shortened URL.
+It takes the URL in inline mode. For example, `@mybot https://github.com/misshanya/url-shortener`. And you will get the shortened URL.
 
 ## How to
 
