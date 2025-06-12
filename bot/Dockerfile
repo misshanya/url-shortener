@@ -15,4 +15,7 @@ WORKDIR /app
 
 COPY --from=builder /app/bot ./bot
 
+RUN addgroup -S bot && adduser -S bot -G bot
+USER bot
+
 CMD ["./bot"]

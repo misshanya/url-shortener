@@ -15,4 +15,7 @@ WORKDIR /app
 
 COPY --from=builder /app/gateway ./gateway
 
+RUN addgroup -S gateway && adduser -S gateway -G gateway
+USER gateway
+
 CMD ["./gateway"]

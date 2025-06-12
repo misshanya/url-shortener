@@ -15,4 +15,7 @@ WORKDIR /app
 
 COPY --from=builder /app/shortener ./shortener
 
+RUN addgroup -S shortener && adduser -S shortener -G shortener
+USER shortener
+
 CMD ["./shortener"]
