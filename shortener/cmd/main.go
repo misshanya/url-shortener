@@ -9,7 +9,13 @@ import (
 
 func main() {
 	logger := setupLogger()
-	cfg := config.NewConfig(logger)
+
+	cfg, err := config.NewConfig()
+	if err != nil {
+		logger.Error("failed to read config", slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	app.Start(cfg, logger)
 }
 
