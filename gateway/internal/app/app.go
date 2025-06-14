@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/misshanya/url-shortener/gateway/internal/config"
@@ -11,51 +12,63 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"log/slog"
-	"os"
+	"net/http"
 	"time"
 )
 
-func Start(cfg *config.Config, logger *slog.Logger) {
-	// Init gRPC connection to the shortener service
-	grpcConn, err := grpc.NewClient(cfg.GRPCClient.ServerAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		slog.Error("failed to connect to grpc server", slog.String("error", err.Error()))
-		os.Exit(1)
+type App struct {
+	e        *echo.Echo
+	grpcConn *grpc.ClientConn
+	cfg      *config.Config
+	l        *slog.Logger
+}
+
+func New(cfg *config.Config, l *slog.Logger) (*App, error) {
+	a := &App{
+		cfg: cfg,
+		l:   l,
 	}
 
+	// Init gRPC connection to the shortener service
+	grpcConn, err := grpc.NewClient(a.cfg.GRPCClient.ServerAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, err
+	}
+	a.grpcConn = grpcConn
+
 	// Create gRPC client for the shortener service
-	grpcClient := pb.NewURLShortenerServiceClient(grpcConn)
+	grpcClient := pb.NewURLShortenerServiceClient(a.grpcConn)
 
 	// Init service
-	svc := service.NewService(grpcClient, cfg.Server.PublicHost)
+	svc := service.NewService(grpcClient, a.cfg.Server.PublicHost)
 
 	// Init handler
 	shortenerHandler := handler.NewHandler(svc)
 
 	// Init Echo
-	e := echo.New()
+	a.e = echo.New()
 
 	// CORS
-	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+	a.e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"*"}, // Change in production !!!
 	}))
 
 	// Logger
-	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+	a.e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogStatus:   true,
 		LogURI:      true,
 		LogError:    true,
 		HandleError: true,
 		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
 			if v.Error == nil {
-				logger.LogAttrs(context.Background(), slog.LevelInfo, "REQUEST",
+				a.l.LogAttrs(context.Background(), slog.LevelInfo, "REQUEST",
 					slog.String("uri", v.URI),
 					slog.Int("status", v.Status),
 					slog.String("ip", v.RemoteIP),
 					slog.String("latency", time.Now().Sub(v.StartTime).String()),
 				)
 			} else {
-				logger.LogAttrs(context.Background(), slog.LevelError, "REQUEST_ERROR",
+				a.l.LogAttrs(context.Background(), slog.LevelError, "REQUEST_ERROR",
 					slog.String("uri", v.URI),
 					slog.Int("status", v.Status),
 					slog.String("ip", v.RemoteIP),
@@ -68,14 +81,41 @@ func Start(cfg *config.Config, logger *slog.Logger) {
 	}))
 
 	// Recoverer
-	e.Use(middleware.Recover())
+	a.e.Use(middleware.Recover())
 
 	// Connect handlers to the routes
-	e.POST("/shorten", shortenerHandler.ShortenURL)
-	e.GET("/:hash", shortenerHandler.UnshortenURL)
+	a.e.POST("/shorten", shortenerHandler.ShortenURL)
+	a.e.GET("/:hash", shortenerHandler.UnshortenURL)
 
-	logger.Info("starting server", slog.String("addr", cfg.Server.Addr))
+	return a, nil
+}
 
-	// Start the server
-	e.Logger.Fatal(e.Start(cfg.Server.Addr))
+func (a *App) Start(errChan chan<- error) {
+	a.l.Info("starting server", slog.String("addr", a.cfg.Server.Addr))
+	if err := a.e.Start(a.cfg.Server.Addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		errChan <- err
+	}
+}
+
+func (a *App) Stop(ctx context.Context) error {
+	a.l.Info("[!] Shutting down...")
+
+	var stopErr error
+
+	a.l.Info("Stopping http server...")
+	if err := a.e.Shutdown(ctx); err != nil {
+		errors.Join(stopErr, err)
+	}
+
+	a.l.Info("Closing gRPC connection...")
+	if err := a.grpcConn.Close(); err != nil {
+		errors.Join(stopErr, err)
+	}
+
+	if stopErr != nil {
+		return stopErr
+	}
+
+	a.l.Info("Stopped gracefully")
+	return nil
 }
