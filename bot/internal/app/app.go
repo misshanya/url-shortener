@@ -10,29 +10,36 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"log/slog"
-	"os"
-	"os/signal"
 )
 
-func Start(cfg *config.Config, logger *slog.Logger) {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
+type App struct {
+	cfg      *config.Config
+	l        *slog.Logger
+	b        *bot.Bot
+	grpcConn *grpc.ClientConn
+}
+
+func New(cfg *config.Config, l *slog.Logger) (*App, error) {
+	a := &App{
+		cfg: cfg,
+		l:   l,
+	}
 
 	// Init gRPC connection to the shortener service
 	grpcConn, err := grpc.NewClient(cfg.GRPCClient.ServerAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		slog.Error("failed to connect to grpc server", slog.String("error", err.Error()))
-		os.Exit(1)
+		return nil, err
 	}
+	a.grpcConn = grpcConn
 
 	// Create gRPC client for the shortener service
 	grpcClient := pb.NewURLShortenerServiceClient(grpcConn)
 
 	// Init service
-	svc := service.New(grpcClient, cfg.Bot.PublicHost, logger)
+	svc := service.New(grpcClient, cfg.Bot.PublicHost, a.l)
 
 	// Init handler
-	botHandler := handler.New(logger, svc)
+	botHandler := handler.New(a.l, svc)
 
 	// Configure bot
 	opts := []bot.Option{
@@ -41,10 +48,26 @@ func Start(cfg *config.Config, logger *slog.Logger) {
 
 	b, err := bot.New(cfg.Bot.Token, opts...)
 	if err != nil {
-		panic(err)
+		return nil, err
+	}
+	a.b = b
+
+	return a, nil
+}
+
+func (a *App) Start(ctx context.Context) {
+	a.l.Info("Starting bot")
+	a.b.Start(ctx)
+}
+
+func (a *App) Stop() error {
+	a.l.Info("[!] Shutting down...")
+
+	a.l.Info("Closing gRPC connection...")
+	if err := a.grpcConn.Close(); err != nil {
+		return err
 	}
 
-	// Start bot
-	logger.Info("starting bot")
-	b.Start(ctx)
+	a.l.Info("Stopped gracefully")
+	return nil
 }

@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"github.com/misshanya/url-shortener/bot/internal/app"
 	"github.com/misshanya/url-shortener/bot/internal/config"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 func main() {
@@ -16,7 +20,28 @@ func main() {
 		os.Exit(1)
 	}
 
-	app.Start(cfg, logger)
+	// Create app
+	a, err := app.New(cfg, logger)
+	if err != nil {
+		logger.Error("failed to create app", slog.Any("error", err))
+		os.Exit(1)
+	}
+
+	// Create ctx for graceful shutdown
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Start bot
+	go a.Start(ctx)
+
+	// Gracefully shut down on interrupt or SIGTERM
+	<-ctx.Done()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := a.Stop(); err != nil {
+		logger.Error("failed to stop server", slog.Any("error", err))
+		os.Exit(1)
+	}
 }
 
 func setupLogger() *slog.Logger {
