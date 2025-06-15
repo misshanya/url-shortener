@@ -1,8 +1,9 @@
--- name: StoreShort :exec
-INSERT INTO urls (url, short) VALUES ($1, $2);
+-- name: StoreShort :one
+INSERT INTO urls (url) VALUES ($1)
+RETURNING id;
 
--- name: GetURLByShort :one
-SELECT url FROM urls WHERE short = $1;
+-- name: GetID :one
+SELECT id FROM urls WHERE url = $1;
 
--- name: GetShortByURL :one
-SELECT short FROM urls WHERE url = $1;
+-- name: GetURLByID :one
+SELECT url FROM urls WHERE id = $1;
