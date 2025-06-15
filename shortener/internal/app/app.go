@@ -13,11 +13,17 @@ import (
 	"github.com/misshanya/url-shortener/shortener/internal/service"
 	handler "github.com/misshanya/url-shortener/shortener/internal/transport/grpc"
 	"google.golang.org/grpc"
-	"log"
 	"log/slog"
 	"net"
-	"os"
 )
+
+type App struct {
+	cfg     *config.Config
+	l       *slog.Logger
+	lis     *net.Listener
+	dbPool  *pgxpool.Pool
+	grpcSrv *grpc.Server
+}
 
 // InterceptorLogger adapts slog logger to interceptor logger.
 func InterceptorLogger(l *slog.Logger) logging.Logger {
@@ -26,31 +32,32 @@ func InterceptorLogger(l *slog.Logger) logging.Logger {
 	})
 }
 
-func Start(cfg *config.Config, logger *slog.Logger) {
-	ctx := context.Background()
+func New(ctx context.Context, cfg *config.Config, l *slog.Logger) (*App, error) {
+	a := &App{
+		cfg: cfg,
+		l:   l,
+	}
 
 	// Add a listener address
 	lis, err := net.Listen("tcp", cfg.Server.Addr)
 	if err != nil {
-		slog.Error("failed to listen", "error", err)
-		os.Exit(1)
+		return nil, err
 	}
+	a.lis = &lis
 
 	// Init db connection
-	conn, err := initDB(ctx, cfg.Postgres.URL)
+	a.dbPool, err = initDB(ctx, cfg.Postgres.URL)
 	if err != nil {
-		slog.Error("failed to connect to database")
-		os.Exit(1)
+		return nil, err
 	}
 
 	// Migrate db
-	if err := db.Migrate(sql.OpenDB(stdlib.GetConnector(*conn.Config().ConnConfig))); err != nil {
-		slog.Error("failed to migrate database", slog.Any("err", err))
-		os.Exit(1)
+	if err := db.Migrate(sql.OpenDB(stdlib.GetConnector(*a.dbPool.Config().ConnConfig))); err != nil {
+		return nil, err
 	}
 
 	// Init SQL queries
-	queries := storage.New(conn)
+	queries := storage.New(a.dbPool)
 
 	// Configure interceptor logger
 	opts := []logging.Option{
@@ -58,19 +65,39 @@ func Start(cfg *config.Config, logger *slog.Logger) {
 	}
 
 	// Create a gRPC server
-	grpcServer := grpc.NewServer(
+	a.grpcSrv = grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			logging.UnaryServerInterceptor(InterceptorLogger(logger), opts...),
+			logging.UnaryServerInterceptor(InterceptorLogger(a.l), opts...),
 		),
 	)
 
 	repo := repository.NewPostgresRepo(queries)
-	svc := service.New(repo, logger)
+	svc := service.New(repo, a.l)
 
-	handler.NewHandler(grpcServer, svc)
+	handler.NewHandler(a.grpcSrv, svc)
 
-	logger.Info("starting server", slog.String("addr", cfg.Server.Addr))
-	log.Fatal(grpcServer.Serve(lis))
+	return a, nil
+}
+
+func (a *App) Start(errChan chan<- error) {
+	a.l.Info("starting server", slog.String("addr", a.cfg.Server.Addr))
+	if err := a.grpcSrv.Serve(*a.lis); err != nil {
+		errChan <- err
+	}
+}
+
+func (a *App) Stop() {
+	a.l.Info("[!] Shutting down...")
+
+	// Stop server
+	a.l.Info("Stopping gRPC server...")
+	a.grpcSrv.GracefulStop()
+
+	// Close DB pool
+	a.l.Info("Closing database pool...")
+	a.dbPool.Close()
+
+	a.l.Info("Stopped gracefully")
 }
 
 func initDB(ctx context.Context, dbURL string) (*pgxpool.Pool, error) {
