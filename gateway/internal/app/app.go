@@ -104,12 +104,12 @@ func (a *App) Stop(ctx context.Context) error {
 
 	a.l.Info("Stopping http server...")
 	if err := a.e.Shutdown(ctx); err != nil {
-		errors.Join(stopErr, err)
+		stopErr = errors.Join(stopErr, err)
 	}
 
 	a.l.Info("Closing gRPC connection...")
 	if err := a.grpcConn.Close(); err != nil {
-		errors.Join(stopErr, err)
+		stopErr = errors.Join(stopErr, err)
 	}
 
 	if stopErr != nil {
