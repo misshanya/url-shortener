@@ -2,20 +2,19 @@ package service
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"errors"
-	"fmt"
 	"github.com/misshanya/url-shortener/shortener/internal/models"
+	"github.com/misshanya/url-shortener/shortener/pkg/base62"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log/slog"
 )
 
 type postgresRepo interface {
-	StoreShort(ctx context.Context, short models.Short) error
-	GetShort(ctx context.Context, url string) (string, error)
-	GetURL(ctx context.Context, short string) (string, error)
+	StoreURL(ctx context.Context, url string) (int64, error)
+	GetID(ctx context.Context, url string) (int64, error)
+	GetURL(ctx context.Context, id int64) (string, error)
 }
 type Service struct {
 	pr postgresRepo
@@ -27,9 +26,9 @@ func New(repo postgresRepo, logger *slog.Logger) *Service {
 }
 
 func (s *Service) ShortenURL(ctx context.Context, short *models.Short) error {
-	// Try to get shorted by URL, and if it exists, return
-	if sh, err := s.pr.GetShort(ctx, short.URL); err == nil {
-		short.Short = sh
+	// Try to get ID by URL, and if it exists, encode and return
+	if id, err := s.pr.GetID(ctx, short.URL); err == nil {
+		short.Short = base62.Encode(id)
 		return nil
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		s.l.Error("failed to get short by url", "error", err)
@@ -38,20 +37,23 @@ func (s *Service) ShortenURL(ctx context.Context, short *models.Short) error {
 
 	s.l.Info("shortening url", slog.String("url", short.URL))
 
-	// Hash via SHA256
-	hash := sha256.Sum256([]byte(short.URL))
-	short.Short = fmt.Sprintf("%x", hash)[:10]
-
-	if err := s.pr.StoreShort(ctx, *short); err != nil {
+	id, err := s.pr.StoreURL(ctx, short.URL)
+	if err != nil {
 		s.l.Error("failed to store short by url", "error", err)
 		return status.Error(codes.Internal, "failed to store short")
 	}
+
+	// Encode via base62
+	short.Short = base62.Encode(id)
 
 	return nil
 }
 
 func (s *Service) GetURL(ctx context.Context, short string) (string, error) {
-	url, err := s.pr.GetURL(ctx, short)
+	// Decode shorted into ID
+	id := base62.Decode(short)
+
+	url, err := s.pr.GetURL(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", status.Error(codes.NotFound, "short not found")

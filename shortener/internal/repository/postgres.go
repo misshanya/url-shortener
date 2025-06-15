@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"github.com/misshanya/url-shortener/shortener/internal/db/sqlc/storage"
-	"github.com/misshanya/url-shortener/shortener/internal/models"
 )
 
 type PostgresRepo struct {
@@ -14,17 +13,14 @@ func NewPostgresRepo(queries *storage.Queries) *PostgresRepo {
 	return &PostgresRepo{queries: queries}
 }
 
-func (r *PostgresRepo) StoreShort(ctx context.Context, short models.Short) error {
-	return r.queries.StoreShort(ctx, storage.StoreShortParams{
-		Url:   short.URL,
-		Short: short.Short,
-	})
+func (r *PostgresRepo) StoreURL(ctx context.Context, url string) (int64, error) {
+	return r.queries.StoreShort(ctx, url)
 }
 
-func (r *PostgresRepo) GetShort(ctx context.Context, url string) (string, error) {
-	return r.queries.GetShortByURL(ctx, url)
+func (r *PostgresRepo) GetID(ctx context.Context, url string) (int64, error) {
+	return r.queries.GetID(ctx, url)
 }
 
-func (r *PostgresRepo) GetURL(ctx context.Context, short string) (string, error) {
-	return r.queries.GetURLByShort(ctx, short)
+func (r *PostgresRepo) GetURL(ctx context.Context, id int64) (string, error) {
+	return r.queries.GetURLByID(ctx, id)
 }

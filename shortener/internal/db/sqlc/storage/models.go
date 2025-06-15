@@ -4,12 +4,7 @@
 
 package storage
 
-import (
-	"github.com/google/uuid"
-)
-
 type Url struct {
-	ID    uuid.UUID
-	Url   string
-	Short string
+	ID  int64
+	Url string
 }

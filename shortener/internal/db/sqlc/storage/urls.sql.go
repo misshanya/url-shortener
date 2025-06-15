@@ -9,38 +9,36 @@ import (
 	"context"
 )
 
-const getShortByURL = `-- name: GetShortByURL :one
-SELECT short FROM urls WHERE url = $1
+const getID = `-- name: GetID :one
+SELECT id FROM urls WHERE url = $1
 `
 
-func (q *Queries) GetShortByURL(ctx context.Context, url string) (string, error) {
-	row := q.db.QueryRow(ctx, getShortByURL, url)
-	var short string
-	err := row.Scan(&short)
-	return short, err
+func (q *Queries) GetID(ctx context.Context, url string) (int64, error) {
+	row := q.db.QueryRow(ctx, getID, url)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
-const getURLByShort = `-- name: GetURLByShort :one
-SELECT url FROM urls WHERE short = $1
+const getURLByID = `-- name: GetURLByID :one
+SELECT url FROM urls WHERE id = $1
 `
 
-func (q *Queries) GetURLByShort(ctx context.Context, short string) (string, error) {
-	row := q.db.QueryRow(ctx, getURLByShort, short)
+func (q *Queries) GetURLByID(ctx context.Context, id int64) (string, error) {
+	row := q.db.QueryRow(ctx, getURLByID, id)
 	var url string
 	err := row.Scan(&url)
 	return url, err
 }
 
-const storeShort = `-- name: StoreShort :exec
-INSERT INTO urls (url, short) VALUES ($1, $2)
+const storeShort = `-- name: StoreShort :one
+INSERT INTO urls (url) VALUES ($1)
+RETURNING id
 `
 
-type StoreShortParams struct {
-	Url   string
-	Short string
-}
-
-func (q *Queries) StoreShort(ctx context.Context, arg StoreShortParams) error {
-	_, err := q.db.Exec(ctx, storeShort, arg.Url, arg.Short)
-	return err
+func (q *Queries) StoreShort(ctx context.Context, url string) (int64, error) {
+	row := q.db.QueryRow(ctx, storeShort, url)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }

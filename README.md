@@ -7,17 +7,17 @@ My first practice with gRPC.
 
 ### Main service (shortener), gRPC
 
-To shorten URL, this service calculates SHA256 hash and stores its first characters in PostgreSQL.
+To shorten URL, this service stores original URL in PostgreSQL and encodes ID into base62.
 
-To unshorten URL, it simply gets original URL by hash from DB.
+To unshorten URL, it simply decodes base62 and gets original URL by id from DB.
 
 ### Gateway, REST
 
 This service communicates with the `shortener` by gRPC.
 
-To shorten URL, it gets hash from `shortener` and constructs final URL using `PUBLIC_HOST` and hash. For example, hash is `asdf`, PUBLIC_HOST is `https://sh.some/`. Final URL is `https://sh.some/asdf`.
+To shorten URL, it gets hash from `shortener` and constructs final URL using `PUBLIC_HOST` and base62. For example, base62 is `1z`, PUBLIC_HOST is `https://sh.some/`. Final URL is `https://sh.some/1z`.
 
-To unshorten URL, it queries the `shortener` and gets original URL by hash in the path param in the request. Then, it redirects with 302 to the original URL.
+To unshorten URL, it queries the `shortener` and gets original URL by base62 in the path param in the request. Then, it redirects with 302 to the original URL.
 
 ### Bot, Telegram inline mode
 
