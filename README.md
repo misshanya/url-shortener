@@ -15,7 +15,7 @@ To unshorten URL, it simply decodes base62 and gets original URL by id from DB.
 
 This service communicates with the `shortener` by gRPC.
 
-To shorten URL, it gets hash from `shortener` and constructs final URL using `PUBLIC_HOST` and base62. For example, base62 is `1z`, PUBLIC_HOST is `https://sh.some/`. Final URL is `https://sh.some/1z`.
+To shorten URL, it gets base62 encoded id from `shortener` and constructs final URL using `PUBLIC_HOST` and base62. For example, base62 is `1z`, PUBLIC_HOST is `https://sh.some/`. Final URL is `https://sh.some/1z`.
 
 To unshorten URL, it queries the `shortener` and gets original URL by base62 in the path param in the request. Then, it redirects with 302 to the original URL.
 
@@ -25,7 +25,7 @@ This service also communicates with the `shortener` by gRPC.
 
 Bot only shortens the URL, unshortening process is on `gateway`.
 
-Shortening process is the same as the one in `gateway`: walk to the `shortener`, get hash, connect public host.
+Shortening process is the same as the one in `gateway`: walk to the `shortener`, get base62, connect public host.
 
 It takes the URL in inline mode. For example, `@mybot https://github.com/misshanya/url-shortener`. And you will get the shortened URL.
 
@@ -68,7 +68,7 @@ docker compose up -d
  }
  ```
 
-**Unshorten** - `GET /{hash}`
+**Unshorten** - `GET /{base62}`
 
 ## License
 
