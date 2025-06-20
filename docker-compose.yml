@@ -8,6 +8,7 @@ networks:
 
 volumes:
   shortener_db_data:
+  kafka_data:
 
 services:
   shortener:
@@ -66,3 +67,35 @@ services:
       - shortener
     depends_on:
       - gateway
+
+  kafka:
+    container_name: kafka
+    image: bitnami/kafka:4.0.0
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/bitnami/kafka
+    environment:
+      - KAFKA_CFG_NODE_ID=0
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@127.0.0.1:9094
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9093,EXTERNAL://:9092,CONTROLLER://:9094
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9093,EXTERNAL://localhost:9092
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+    networks:
+      - shortener
+
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - "8088:8080"
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local-shortener-cluster
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9093
+    depends_on:
+      - kafka
+    networks:
+      - shortener
