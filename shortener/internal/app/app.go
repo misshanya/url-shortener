@@ -12,17 +12,19 @@ import (
 	"github.com/misshanya/url-shortener/shortener/internal/repository"
 	"github.com/misshanya/url-shortener/shortener/internal/service"
 	handler "github.com/misshanya/url-shortener/shortener/internal/transport/grpc"
+	"github.com/segmentio/kafka-go"
 	"google.golang.org/grpc"
 	"log/slog"
 	"net"
 )
 
 type App struct {
-	cfg     *config.Config
-	l       *slog.Logger
-	lis     *net.Listener
-	dbPool  *pgxpool.Pool
-	grpcSrv *grpc.Server
+	cfg         *config.Config
+	l           *slog.Logger
+	lis         *net.Listener
+	dbPool      *pgxpool.Pool
+	grpcSrv     *grpc.Server
+	kafkaWriter *kafka.Writer
 }
 
 // InterceptorLogger adapts slog logger to interceptor logger.
@@ -71,8 +73,14 @@ func New(ctx context.Context, cfg *config.Config, l *slog.Logger) (*App, error) 
 		),
 	)
 
+	// Create a Kafka writer
+	a.kafkaWriter = &kafka.Writer{
+		Addr:                   kafka.TCP(cfg.Kafka.Addr),
+		AllowAutoTopicCreation: true,
+	}
+
 	repo := repository.NewPostgresRepo(queries)
-	svc := service.New(repo, a.l)
+	svc := service.New(repo, a.l, a.kafkaWriter)
 
 	handler.NewHandler(a.grpcSrv, svc)
 
@@ -86,7 +94,7 @@ func (a *App) Start(errChan chan<- error) {
 	}
 }
 
-func (a *App) Stop() {
+func (a *App) Stop() error {
 	a.l.Info("[!] Shutting down...")
 
 	// Stop server
@@ -97,7 +105,13 @@ func (a *App) Stop() {
 	a.l.Info("Closing database pool...")
 	a.dbPool.Close()
 
+	// Close Kafka connection
+	if err := a.kafkaWriter.Close(); err != nil {
+		return err
+	}
+
 	a.l.Info("Stopped gracefully")
+	return nil
 }
 
 func initDB(ctx context.Context, dbURL string) (*pgxpool.Pool, error) {
