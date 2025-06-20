@@ -32,7 +32,6 @@ func (c *Consumer) ReadMessages(ctx context.Context) {
 		m, err := c.kr.ReadMessage(ctx)
 		if err != nil {
 			c.l.Error("Failed to read message", "error", err)
-			break
 		}
 
 		switch m.Topic {
