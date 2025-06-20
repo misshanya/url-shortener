@@ -11,6 +11,8 @@ To shorten URL, this service stores original URL in PostgreSQL and encodes ID in
 
 To unshorten URL, it simply decodes base62 and gets original URL by id from DB.
 
+It is a Kafka producer for topics `shortener.shortened` and `shortener.unshortened`.
+
 ### Gateway, REST
 
 This service communicates with the `shortener` by gRPC.
@@ -28,6 +30,20 @@ Bot only shortens the URL, unshortening process is on `gateway`.
 Shortening process is the same as the one in `gateway`: walk to the `shortener`, get base62, connect public host.
 
 It takes the URL in inline mode. For example, `@mybot https://github.com/misshanya/url-shortener`. And you will get the shortened URL.
+
+### Statistics
+
+This service is a Kafka consumer for 2 topics: `shortener.shortened` and `shortener.unshortened`.
+
+It gets events, logs them and increments `Prometheus` counters.
+
+## Tech stack
+
+- Go
+- PostgreSQL
+- Kafka (UI is available on port 8088)
+- Prometheus
+- Grafana (available on port 8089)
 
 ## How to
 
