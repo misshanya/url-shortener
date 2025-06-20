@@ -10,7 +10,7 @@ jobs:
 
     strategy:
       matrix:
-        module: [ 'shortener', 'gateway', 'bot' ]
+        module: [ 'shortener', 'gateway', 'bot', 'statistics' ]
 
     steps:
       - uses: actions/checkout@v4
