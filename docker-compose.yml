@@ -73,7 +73,7 @@ services:
       - gateway
 
   kafka:
-    container_name: kafka
+    container_name: shortener_kafka
     image: bitnami/kafka:4.0.0
     ports:
       - "9092:9092"
@@ -92,7 +92,7 @@ services:
       - shortener
 
   kafka-ui:
-    container_name: kafka-ui
+    container_name: shortener_kafka-ui
     image: provectuslabs/kafka-ui:latest
     ports:
       - "8088:8080"
