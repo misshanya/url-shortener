@@ -41,7 +41,9 @@ func main() {
 		logger.Error("failed to start server", slog.Any("error", err))
 		os.Exit(1)
 	case <-ctx.Done():
-		a.Stop()
+		if err := a.Stop(); err != nil {
+			logger.Error("failed to stop server", slog.Any("error", err))
+		}
 	}
 }
 

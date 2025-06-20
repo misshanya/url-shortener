@@ -7,6 +7,7 @@ import (
 type Config struct {
 	Server   server
 	Postgres postgres
+	Kafka    kafka
 }
 
 type server struct {
@@ -15,6 +16,10 @@ type server struct {
 
 type postgres struct {
 	URL string `env:"POSTGRES_URL" env-required:"true"`
+}
+
+type kafka struct {
+	Addr string `env:"KAFKA_ADDR" env-required:"true"`
 }
 
 func NewConfig() (*Config, error) {

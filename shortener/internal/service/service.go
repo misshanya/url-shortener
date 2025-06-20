@@ -3,12 +3,15 @@ package service
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"github.com/misshanya/url-shortener/shortener/internal/models"
 	"github.com/misshanya/url-shortener/shortener/pkg/base62"
+	"github.com/segmentio/kafka-go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log/slog"
+	"time"
 )
 
 type postgresRepo interface {
@@ -19,10 +22,11 @@ type postgresRepo interface {
 type Service struct {
 	pr postgresRepo
 	l  *slog.Logger
+	kw *kafka.Writer
 }
 
-func New(repo postgresRepo, logger *slog.Logger) *Service {
-	return &Service{pr: repo, l: logger}
+func New(repo postgresRepo, logger *slog.Logger, kafkaWriter *kafka.Writer) *Service {
+	return &Service{pr: repo, l: logger, kw: kafkaWriter}
 }
 
 func (s *Service) ShortenURL(ctx context.Context, short *models.Short) error {
@@ -46,6 +50,26 @@ func (s *Service) ShortenURL(ctx context.Context, short *models.Short) error {
 	// Encode via base62
 	short.Short = base62.Encode(id)
 
+	// Write to Kafka that we are just shortened the URL
+	msg := models.KafkaMessageShortened{
+		ShortenedAt: time.Now(),
+		OriginalURL: short.URL,
+		ShortCode:   short.Short,
+	}
+	msgMarshaled, err := json.Marshal(msg)
+	if err != nil {
+		s.l.Error("failed to marshal KafkaMessageShortened", "error", err)
+	}
+	go func() {
+		if err := s.kw.WriteMessages(context.Background(),
+			kafka.Message{
+				Topic: "shortener.shortened",
+				Value: msgMarshaled,
+			}); err != nil {
+			s.l.Error("failed to write messages to Kafka", "error", err)
+		}
+	}()
+
 	return nil
 }
 
@@ -61,6 +85,26 @@ func (s *Service) GetURL(ctx context.Context, short string) (string, error) {
 		s.l.Error("failed to get short by url", "error", err)
 		return "", status.Error(codes.Internal, "failed to get short by url")
 	}
+
+	// Write to Kafka that we are just unshortened URL
+	msg := models.KafkaMessageUnshortened{
+		UnshortenedAt: time.Now(),
+		OriginalURL:   url,
+		ShortCode:     short,
+	}
+	msgMarshaled, err := json.Marshal(msg)
+	if err != nil {
+		s.l.Error("failed to marshal KafkaMessageShortened", "error", err)
+	}
+	go func() {
+		if err := s.kw.WriteMessages(context.Background(),
+			kafka.Message{
+				Topic: "shortener.unshortened",
+				Value: msgMarshaled,
+			}); err != nil {
+			s.l.Error("failed to write messages to Kafka", "error", err)
+		}
+	}()
 
 	return url, nil
 }
