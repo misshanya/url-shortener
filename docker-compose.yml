@@ -9,6 +9,8 @@ networks:
 volumes:
   shortener_db_data:
   kafka_data:
+  prometheus_data:
+  grafana_data:
 
 services:
   shortener:
@@ -99,5 +101,50 @@ services:
       - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9093
     depends_on:
       - kafka
+    networks:
+      - shortener
+
+  statistics:
+    container_name: shortener_statistics
+    build:
+      context: ./statistics
+    restart: unless-stopped
+    environment:
+      KAFKA_ADDR: kafka:9093
+      SERVER_ADDR: "0.0.0.0:${STATISTICS_SERVER_PORT}"
+    depends_on:
+      - shortener
+      - kafka
+    networks:
+      - shortener
+
+  prometheus:
+    container_name: shortener_statistics-prometheus
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    command: '--config.file=/etc/prometheus/prometheus.yml'
+    volumes:
+      - ./config/statistics/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+    networks:
+      - shortener
+
+  grafana:
+    container_name: shortener_statistics-grafana
+    image: grafana/grafana-oss
+    volumes:
+      - ./config/statistics/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "8089:3000"
+    environment:
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: "/var/lib/grafana/dashboards/mitter.json"
+      GF_SERVER_ROOT_URL: "${STATISTICS_GF_SERVER_ROOT_URL}"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "${STATISTICS_GF_SERVE_FROM_SUB_PATH}"
+      GF_SERVER_DOMAIN: "${STATISTICS_GF_DOMAIN}"
+      GF_SERVER_PROXY_ENABLE: "${STATISTICS_GF_PROXY_ENABLE}"
+    restart: unless-stopped
     networks:
       - shortener

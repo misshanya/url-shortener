@@ -1,0 +1,5 @@
+datasources:
+  - name: Prometheus (Main)
+    type: prometheus
+    url: http://prometheus:9090
+    isDefault: true
