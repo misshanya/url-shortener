@@ -13,6 +13,7 @@ import (
 	"github.com/segmentio/kafka-go"
 	"log/slog"
 	"net/http"
+	"time"
 )
 
 type App struct {
@@ -41,7 +42,31 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 
 	// Create http server to gather metrics from
 	a.e = echo.New()
-	a.e.Use(middleware.Logger())
+	a.e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogStatus:   true,
+		LogURI:      true,
+		LogError:    true,
+		HandleError: true,
+		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+			if v.Error == nil {
+				a.l.LogAttrs(context.Background(), slog.LevelInfo, "REQUEST",
+					slog.String("uri", v.URI),
+					slog.Int("status", v.Status),
+					slog.String("ip", v.RemoteIP),
+					slog.String("latency", time.Now().Sub(v.StartTime).String()),
+				)
+			} else {
+				a.l.LogAttrs(context.Background(), slog.LevelError, "REQUEST_ERROR",
+					slog.String("uri", v.URI),
+					slog.Int("status", v.Status),
+					slog.String("ip", v.RemoteIP),
+					slog.String("latency", time.Now().Sub(v.StartTime).String()),
+					slog.String("err", v.Error.Error()),
+				)
+			}
+			return nil
+		},
+	}))
 	a.e.GET("/metrics", echoprometheus.NewHandler())
 
 	svc := service.New(a.l, m)
