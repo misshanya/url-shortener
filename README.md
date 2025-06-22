@@ -5,6 +5,12 @@ My first practice with gRPC.
 
 ## Architecture
 
+### Diagram
+
+<p>
+    <img src="./assets/architecture.svg" alt="Architecture Diagram" width="900"/>
+</p>
+
 ### Main service (shortener), gRPC
 
 To shorten URL, this service stores original URL in PostgreSQL and encodes ID into base62.
