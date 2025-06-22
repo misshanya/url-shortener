@@ -112,9 +112,25 @@ services:
     environment:
       KAFKA_ADDR: kafka:9093
       SERVER_ADDR: "0.0.0.0:${STATISTICS_SERVER_PORT}"
+      CLICKHOUSE_ADDR: clickhouse:9000
+      CLICKHOUSE_USER: "${STATISTICS_CLICKHOUSE_USER}"
+      CLICKHOUSE_PASSWORD: "${STATISTICS_CLICKHOUSE_PASSWORD}"
     depends_on:
       - shortener
       - kafka
+      - clickhouse
+    networks:
+      - shortener
+
+  clickhouse:
+    container_name: shortener_statistics-clickhouse
+    image: clickhouse/clickhouse-server:latest
+    environment:
+      CLICKHOUSE_USER: "${STATISTICS_CLICKHOUSE_USER}"
+      CLICKHOUSE_PASSWORD: "${STATISTICS_CLICKHOUSE_PASSWORD}"
+    ports:
+      - "8123:8123"
+    restart: unless-stopped
     networks:
       - shortener
 
