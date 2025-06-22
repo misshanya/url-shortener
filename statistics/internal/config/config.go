@@ -5,8 +5,9 @@ import (
 )
 
 type Config struct {
-	Kafka   kafka
-	HttpSrv httpServer
+	Kafka      kafka
+	HttpSrv    httpServer
+	ClickHouse clickHouse
 }
 
 type kafka struct {
@@ -15,6 +16,12 @@ type kafka struct {
 
 type httpServer struct {
 	Addr string `env:"SERVER_ADDR" env-required:"true"`
+}
+
+type clickHouse struct {
+	Addr     string `env:"CLICKHOUSE_ADDR" env-required:"true"`
+	User     string `env:"CLICKHOUSE_USER" env-required:"true"`
+	Password string `env:"CLICKHOUSE_PASSWORD" env-required:"true"`
 }
 
 func NewConfig() (*Config, error) {
