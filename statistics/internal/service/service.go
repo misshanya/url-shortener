@@ -12,6 +12,7 @@ import (
 type clickHouseRepo interface {
 	WriteShortened(ctx context.Context, events []models.ClickHouseEventShortened) error
 	WriteUnshortened(ctx context.Context, events []models.ClickHouseEventUnshortened) error
+	GetTopUnshortened(ctx context.Context, amount, ttl int) (*models.UnshortenedTop, error)
 }
 
 type Service struct {
@@ -134,4 +135,8 @@ func (s *Service) UnshortenedBatchWriter(ctx context.Context) {
 			break
 		}
 	}
+}
+
+func (s *Service) GetTopUnshortened(ctx context.Context, amount, ttl int) (*models.UnshortenedTop, error) {
+	return s.r.GetTopUnshortened(ctx, amount, ttl)
 }

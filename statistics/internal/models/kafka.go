@@ -13,3 +13,10 @@ type KafkaMessageUnshortened struct {
 	OriginalURL   string    `json:"original_url"`
 	ShortCode     string    `json:"short_code"`
 }
+
+type KafkaMessageUnshortenedTop struct {
+	Top []struct {
+		OriginalURL string `json:"original_url"`
+		ShortCode   string `json:"short_code"`
+	} `json:"top"`
+}

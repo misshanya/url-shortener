@@ -115,6 +115,8 @@ services:
       CLICKHOUSE_ADDR: clickhouse:9000
       CLICKHOUSE_USER: "${STATISTICS_CLICKHOUSE_USER}"
       CLICKHOUSE_PASSWORD: "${STATISTICS_CLICKHOUSE_PASSWORD}"
+      TOP_TTL: "${CACHING_TTL}"
+      TOP_AMOUNT: "${CACHING_SIZE}"
     depends_on:
       - shortener
       - kafka

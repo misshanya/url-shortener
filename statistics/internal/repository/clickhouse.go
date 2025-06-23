@@ -45,3 +45,20 @@ func (r *ClickHouseRepo) WriteUnshortened(ctx context.Context, events []models.C
 
 	return batch.Send()
 }
+
+func (r *ClickHouseRepo) GetTopUnshortened(ctx context.Context, amount, ttl int) (*models.UnshortenedTop, error) {
+	var top models.UnshortenedTop
+
+	query := `SELECT OriginalURL, ShortCode
+FROM unshortened
+WHERE timeDiff(UnshortenedAt, now()) < $2
+GROUP BY OriginalURL, ShortCode
+ORDER BY COUNT(*) DESC
+LIMIT $1;`
+	err := r.conn.Select(ctx, &top.Top, query, amount, ttl)
+	if err != nil {
+		return nil, err
+	}
+
+	return &top, nil
+}

@@ -8,6 +8,9 @@ type Config struct {
 	Kafka      kafka
 	HttpSrv    httpServer
 	ClickHouse clickHouse
+
+	TopTTL    int `env:"TOP_TTL" env-default:"3600"`
+	TopAmount int `env:"TOP_AMOUNT" env-default:"100"`
 }
 
 type kafka struct {

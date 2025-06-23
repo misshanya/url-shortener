@@ -12,6 +12,7 @@ import (
 	"github.com/misshanya/url-shortener/statistics/internal/consumer"
 	"github.com/misshanya/url-shortener/statistics/internal/db"
 	"github.com/misshanya/url-shortener/statistics/internal/metrics"
+	"github.com/misshanya/url-shortener/statistics/internal/producer"
 	"github.com/misshanya/url-shortener/statistics/internal/repository"
 	"github.com/misshanya/url-shortener/statistics/internal/service"
 	"github.com/segmentio/kafka-go"
@@ -25,7 +26,9 @@ type App struct {
 	cfg         *config.Config
 	l           *slog.Logger
 	kafkaReader *kafka.Reader
+	kafkaWriter *kafka.Writer
 	consumer    *consumer.Consumer
+	producer    *producer.Producer
 	e           *echo.Echo
 	svc         *service.Service
 	chConn      clickhouse.Conn
@@ -43,6 +46,12 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 		GroupID:     "statistics-group",
 		GroupTopics: []string{"shortener.shortened", "shortener.unshortened"},
 	})
+
+	// Create a Kafka writer
+	a.kafkaWriter = &kafka.Writer{
+		Addr:                   kafka.TCP(cfg.Kafka.Addr),
+		AllowAutoTopicCreation: true,
+	}
 
 	// Configure options for ClickHouse
 	chOptions := clickhouse.Options{
@@ -112,15 +121,17 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 
 	a.svc = service.New(a.l, m, repo)
 	a.consumer = consumer.New(a.l, a.kafkaReader, a.svc)
+	a.producer = producer.New(a.l, a.svc, a.kafkaWriter, cfg.TopTTL, cfg.TopAmount)
 
 	return a, nil
 }
 
 func (a *App) Start(ctx context.Context, errChan chan<- error) {
-	a.l.Info("starting consumer, batch writers and http server for prometheus")
+	a.l.Info("starting consumer, batch writers, producer and http server for prometheus")
 	go a.consumer.ReadMessages(ctx)
 	go a.svc.ShortenedBatchWriter(ctx)
 	go a.svc.UnshortenedBatchWriter(ctx)
+	go a.producer.ProduceTop(ctx)
 	if err := a.e.Start(a.cfg.HttpSrv.Addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		errChan <- err
 	}
@@ -131,8 +142,13 @@ func (a *App) Stop(ctx context.Context) error {
 
 	var stopErr error
 
-	// Close Kafka connection
+	// Close Kafka reader connection
 	if err := a.kafkaReader.Close(); err != nil {
+		stopErr = errors.Join(stopErr, err)
+	}
+
+	// Close Kafka writer connection
+	if err := a.kafkaWriter.Close(); err != nil {
 		stopErr = errors.Join(stopErr, err)
 	}
 
