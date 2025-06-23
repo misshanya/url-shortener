@@ -75,6 +75,7 @@ services:
   kafka:
     container_name: shortener_kafka
     image: bitnami/kafka:4.0.0
+    restart: unless-stopped
     ports:
       - "9092:9092"
     volumes:
@@ -94,6 +95,7 @@ services:
   kafka-ui:
     container_name: shortener_kafka-ui
     image: provectuslabs/kafka-ui:latest
+    restart: unless-stopped
     ports:
       - "8088:8080"
     environment:
