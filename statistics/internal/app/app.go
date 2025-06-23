@@ -3,14 +3,19 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/misshanya/url-shortener/statistics/internal/config"
 	"github.com/misshanya/url-shortener/statistics/internal/consumer"
+	"github.com/misshanya/url-shortener/statistics/internal/db"
 	"github.com/misshanya/url-shortener/statistics/internal/metrics"
+	"github.com/misshanya/url-shortener/statistics/internal/repository"
 	"github.com/misshanya/url-shortener/statistics/internal/service"
 	"github.com/segmentio/kafka-go"
+
 	"log/slog"
 	"net/http"
 	"time"
@@ -22,6 +27,8 @@ type App struct {
 	kafkaReader *kafka.Reader
 	consumer    *consumer.Consumer
 	e           *echo.Echo
+	svc         *service.Service
+	chConn      clickhouse.Conn
 }
 
 func New(cfg *config.Config, l *slog.Logger) (*App, error) {
@@ -36,6 +43,37 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 		GroupID:     "statistics-group",
 		GroupTopics: []string{"shortener.shortened", "shortener.unshortened"},
 	})
+
+	// Configure options for ClickHouse
+	chOptions := clickhouse.Options{
+		Addr: []string{cfg.ClickHouse.Addr},
+		Auth: clickhouse.Auth{
+			Database: "default",
+			Username: cfg.ClickHouse.User,
+			Password: cfg.ClickHouse.Password,
+		},
+		Debug: true,
+		Debugf: func(format string, v ...interface{}) {
+			l.Info(fmt.Sprintf(format, v))
+		},
+	}
+
+	// Migrate ClickHouse
+	if err := db.Migrate(chOptions); err != nil {
+		return nil, err
+	}
+
+	// Create a ClickHouse connection
+	chConn, err := clickhouse.Open(&chOptions)
+	if err != nil {
+		return nil, err
+	}
+	a.chConn = chConn
+
+	// Test connection with ClickHouse
+	if err := a.chConn.Ping(context.Background()); err != nil {
+		return nil, err
+	}
 
 	// Init metrics
 	m := metrics.New()
@@ -69,15 +107,20 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 	}))
 	a.e.GET("/metrics", echoprometheus.NewHandler())
 
-	svc := service.New(a.l, m)
-	a.consumer = consumer.New(a.l, a.kafkaReader, svc)
+	// Create a repository
+	repo := repository.NewClickHouseRepo(a.chConn)
+
+	a.svc = service.New(a.l, m, repo)
+	a.consumer = consumer.New(a.l, a.kafkaReader, a.svc)
 
 	return a, nil
 }
 
 func (a *App) Start(ctx context.Context, errChan chan<- error) {
-	a.l.Info("starting consumer and http server for prometheus")
+	a.l.Info("starting consumer, batch writers and http server for prometheus")
 	go a.consumer.ReadMessages(ctx)
+	go a.svc.ShortenedBatchWriter(ctx)
+	go a.svc.UnshortenedBatchWriter(ctx)
 	if err := a.e.Start(a.cfg.HttpSrv.Addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		errChan <- err
 	}
@@ -90,6 +133,11 @@ func (a *App) Stop(ctx context.Context) error {
 
 	// Close Kafka connection
 	if err := a.kafkaReader.Close(); err != nil {
+		stopErr = errors.Join(stopErr, err)
+	}
+
+	// Close ClickHouse connection
+	if err := a.chConn.Close(); err != nil {
 		stopErr = errors.Join(stopErr, err)
 	}
 
