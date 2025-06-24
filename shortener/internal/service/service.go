@@ -11,7 +11,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log/slog"
-	"strconv"
 	"time"
 )
 
@@ -94,7 +93,7 @@ func (s *Service) GetURL(ctx context.Context, short string) (string, error) {
 	// Decode shorted into ID
 	id := base62.Decode(short)
 
-	url, err := s.vr.GetURLByCode(ctx, strconv.Itoa(int(id)))
+	url, err := s.vr.GetURLByCode(ctx, short)
 	if err != nil {
 		s.l.Error("failed to get short by url from cache", "error", err)
 	}
