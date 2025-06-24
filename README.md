@@ -47,6 +47,8 @@ It gets events, logs them and increments `Prometheus` counters.
 
 - Go
 - PostgreSQL
+- Valkey (Cache)
+- ClickHouse
 - Kafka (UI is available on port 8088)
 - Prometheus
 - Grafana (available on port 8089)
