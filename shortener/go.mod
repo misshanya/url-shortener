@@ -9,6 +9,7 @@ require (
 	github.com/misshanya/url-shortener v0.0.0-20250610224221-929189afe478
 	github.com/pressly/goose/v3 v3.24.3
 	github.com/segmentio/kafka-go v0.4.48
+	github.com/valkey-io/valkey-go v1.0.61
 	google.golang.org/grpc v1.73.0
 )
 
@@ -19,7 +20,6 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect

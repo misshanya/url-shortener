@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log/slog"
+	"strconv"
 	"time"
 )
 
@@ -19,14 +20,30 @@ type postgresRepo interface {
 	GetID(ctx context.Context, url string) (int64, error)
 	GetURL(ctx context.Context, id int64) (string, error)
 }
-type Service struct {
-	pr postgresRepo
-	l  *slog.Logger
-	kw *kafka.Writer
+
+type valkeyRepo interface {
+	SetTop(ctx context.Context, top models.UnshortenedTop, ttl int) error
+	GetURLByCode(ctx context.Context, code string) (string, error)
 }
 
-func New(repo postgresRepo, logger *slog.Logger, kafkaWriter *kafka.Writer) *Service {
-	return &Service{pr: repo, l: logger, kw: kafkaWriter}
+type Service struct {
+	pr postgresRepo
+	vr valkeyRepo
+	l  *slog.Logger
+	kw *kafka.Writer
+
+	topTTL int
+}
+
+func New(repo postgresRepo, vr valkeyRepo, logger *slog.Logger, kafkaWriter *kafka.Writer, topTTL int) *Service {
+	return &Service{
+		pr: repo,
+		vr: vr,
+		l:  logger,
+		kw: kafkaWriter,
+
+		topTTL: topTTL,
+	}
 }
 
 func (s *Service) ShortenURL(ctx context.Context, short *models.Short) error {
@@ -77,13 +94,22 @@ func (s *Service) GetURL(ctx context.Context, short string) (string, error) {
 	// Decode shorted into ID
 	id := base62.Decode(short)
 
-	url, err := s.pr.GetURL(ctx, id)
+	url, err := s.vr.GetURLByCode(ctx, strconv.Itoa(int(id)))
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", status.Error(codes.NotFound, "short not found")
+		s.l.Error("failed to get short by url from cache", "error", err)
+	}
+
+	if url == "" {
+		url, err = s.pr.GetURL(ctx, id)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return "", status.Error(codes.NotFound, "short not found")
+			}
+			s.l.Error("failed to get short by url", "error", err)
+			return "", status.Error(codes.Internal, "failed to get short by url")
 		}
-		s.l.Error("failed to get short by url", "error", err)
-		return "", status.Error(codes.Internal, "failed to get short by url")
+	} else {
+		s.l.Info("got from cache", "url", url)
 	}
 
 	// Write to Kafka that we are just unshortened URL
@@ -107,4 +133,21 @@ func (s *Service) GetURL(ctx context.Context, short string) (string, error) {
 	}()
 
 	return url, nil
+}
+
+func (s *Service) SetTop(ctx context.Context, msg *models.KafkaMessageUnshortenedTop) {
+	top := models.UnshortenedTop{
+		Top: []struct {
+			OriginalURL string
+			ShortCode   string
+		}(msg.Top),
+	}
+
+	err := s.vr.SetTop(ctx, top, s.topTTL)
+	if err != nil {
+		s.l.Error("failed to set top to cache", "error", err)
+		return
+	}
+
+	s.l.Info("cached top", "quantity", len(top.Top))
 }

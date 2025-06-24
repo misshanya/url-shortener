@@ -32,7 +32,7 @@ func main() {
 
 	// Start server
 	errChan := make(chan error)
-	go a.Start(errChan)
+	go a.Start(ctx, errChan)
 
 	// Read from channels
 	// Exit with error OR gracefully shut down

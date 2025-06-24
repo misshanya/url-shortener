@@ -8,6 +8,9 @@ type Config struct {
 	Server   server
 	Postgres postgres
 	Kafka    kafka
+	Valkey   valkey
+
+	TopTTL int `env:"TOP_CACHING_TTL"`
 }
 
 type server struct {
@@ -20,6 +23,11 @@ type postgres struct {
 
 type kafka struct {
 	Addr string `env:"KAFKA_ADDR" env-required:"true"`
+}
+
+type valkey struct {
+	Addr     string `env:"VALKEY_ADDR" env-required:"true"`
+	Password string `env:"VALKEY_PASSWORD" env-required:"true"`
 }
 
 func NewConfig() (*Config, error) {

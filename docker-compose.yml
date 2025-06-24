@@ -22,6 +22,9 @@ services:
       SERVER_ADDR: "0.0.0.0:${SHORTENER_SERVER_PORT}"
       POSTGRES_URL: "postgres://${SHORTENER_PG_USER}:${SHORTENER_PG_PASSWORD}@shortener_db:5432/${SHORTENER_PG_DB}"
       KAFKA_ADDR: "${KAFKA_ADDR}"
+      VALKEY_ADDR: "shortener_cache:6379"
+      VALKEY_PASSWORD: "${SHORTENER_CACHE_PASSWORD}"
+      TOP_CACHING_TTL: "${CACHING_TTL}"
     networks:
       - db
       - shortener
@@ -39,6 +42,15 @@ services:
       POSTGRES_DB: "${SHORTENER_PG_DB}"
     volumes:
       - shortener_db_data:/var/lib/postgresql/data
+    networks:
+      - db
+
+  shortener_cache:
+    container_name: shortener_cache
+    image: valkey/valkey
+    restart: unless-stopped
+    environment:
+      VALKEY_PASSWORD: "${SHORTENER_CACHE_PASSWORD}"
     networks:
       - db
 
