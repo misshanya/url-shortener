@@ -15,9 +15,15 @@ My first practice with gRPC.
 
 To shorten URL, this service stores original URL in PostgreSQL and encodes ID into base62.
 
-To unshorten URL, it simply decodes base62 and gets original URL by id from DB.
+To unshorten URL, it decodes base62 and tries to get original URL by code from cache (Valkey). If not in cache, it queries the PostgreSQL.
 
 It is a Kafka producer for topics `shortener.shortened` and `shortener.unshortened`.
+
+It is a Kafka consumer for topic `shortened.top_unshortened`.
+
+##### Caching:
+
+This service gets a top of URLs by clicks for the last time (configured in .env) from Kafka and stores these URLs in Valkey with configured TTL.
 
 ### Gateway, REST
 
@@ -41,7 +47,12 @@ It takes the URL in inline mode. For example, `@mybot https://github.com/misshan
 
 This service is a Kafka consumer for 2 topics: `shortener.shortened` and `shortener.unshortened`.
 
-It gets events, logs them and increments `Prometheus` counters.
+It gets events, logs them, stores in `ClickHouse` and increments `Prometheus` counters.
+
+`Statistics` service has a background goroutine to get top of the URLs by clicks from ClickHouse for the last time.
+It sends this top to `Kafka`.
+
+This strategy helps to [cache URLs](#caching) in the `shortener` service.
 
 ## Tech stack
 
