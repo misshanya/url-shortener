@@ -119,7 +119,7 @@ func (s *Service) GetURL(ctx context.Context, short string) (string, error) {
 	}
 	msgMarshaled, err := json.Marshal(msg)
 	if err != nil {
-		s.l.Error("failed to marshal KafkaMessageShortened", "error", err)
+		s.l.Error("failed to marshal KafkaMessageUnshortened", "error", err)
 	}
 	go func() {
 		if err := s.kw.WriteMessages(context.Background(),
