@@ -9,8 +9,6 @@ type Config struct {
 	Postgres postgres
 	Kafka    kafka
 	Valkey   valkey
-
-	TopTTL int `env:"TOP_CACHING_TTL"`
 }
 
 type server struct {

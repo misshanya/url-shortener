@@ -15,7 +15,8 @@ type KafkaMessageUnshortened struct {
 }
 
 type KafkaMessageUnshortenedTop struct {
-	Top []struct {
+	ValidUntil time.Time `json:"valid_until"`
+	Top        []struct {
 		OriginalURL string `json:"original_url"`
 		ShortCode   string `json:"short_code"`
 	} `json:"top"`

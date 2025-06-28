@@ -24,7 +24,6 @@ services:
       KAFKA_ADDR: "${KAFKA_ADDR}"
       VALKEY_ADDR: "shortener_cache:6379"
       VALKEY_PASSWORD: "${SHORTENER_CACHE_PASSWORD}"
-      TOP_CACHING_TTL: "${CACHING_TTL}"
     networks:
       - db
       - shortener

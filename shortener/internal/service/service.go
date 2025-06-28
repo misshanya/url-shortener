@@ -21,7 +21,7 @@ type postgresRepo interface {
 }
 
 type valkeyRepo interface {
-	SetTop(ctx context.Context, top models.UnshortenedTop, ttl int) error
+	SetTop(ctx context.Context, top models.UnshortenedTop, ttl time.Duration) error
 	GetURLByCode(ctx context.Context, code string) (string, error)
 }
 
@@ -30,18 +30,14 @@ type Service struct {
 	vr valkeyRepo
 	l  *slog.Logger
 	kw *kafka.Writer
-
-	topTTL int
 }
 
-func New(repo postgresRepo, vr valkeyRepo, logger *slog.Logger, kafkaWriter *kafka.Writer, topTTL int) *Service {
+func New(repo postgresRepo, vr valkeyRepo, logger *slog.Logger, kafkaWriter *kafka.Writer) *Service {
 	return &Service{
 		pr: repo,
 		vr: vr,
 		l:  logger,
 		kw: kafkaWriter,
-
-		topTTL: topTTL,
 	}
 }
 
@@ -136,13 +132,16 @@ func (s *Service) GetURL(ctx context.Context, short string) (string, error) {
 
 func (s *Service) SetTop(ctx context.Context, msg *models.KafkaMessageUnshortenedTop) {
 	top := models.UnshortenedTop{
+		ValidUntil: msg.ValidUntil,
 		Top: []struct {
 			OriginalURL string
 			ShortCode   string
 		}(msg.Top),
 	}
 
-	err := s.vr.SetTop(ctx, top, s.topTTL)
+	ttl := top.ValidUntil.Sub(time.Now())
+
+	err := s.vr.SetTop(ctx, top, ttl)
 	if err != nil {
 		s.l.Error("failed to set top to cache", "error", err)
 		return

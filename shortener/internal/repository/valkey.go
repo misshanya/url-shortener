@@ -16,7 +16,7 @@ func NewValkeyRepo(client valkey.Client) *ValkeyRepo {
 	return &ValkeyRepo{client: client}
 }
 
-func (r *ValkeyRepo) SetTop(ctx context.Context, top models.UnshortenedTop, ttl int) error {
+func (r *ValkeyRepo) SetTop(ctx context.Context, top models.UnshortenedTop, ttl time.Duration) error {
 	var errs error
 	for _, v := range top.Top {
 		err := r.client.Do(ctx,
@@ -25,7 +25,7 @@ func (r *ValkeyRepo) SetTop(ctx context.Context, top models.UnshortenedTop, ttl 
 				Key(v.ShortCode).
 				Value(v.OriginalURL).
 				Nx().
-				Ex(time.Duration(ttl)*time.Second).
+				Ex(ttl).
 				Build(),
 		).Error()
 		if err != nil {

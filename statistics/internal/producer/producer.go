@@ -34,6 +34,7 @@ func New(l *slog.Logger, svc service, kw *kafka.Writer, topTTL, topAmount int) *
 
 func (p *Producer) sendTopToKafka(ctx context.Context, top models.UnshortenedTop) error {
 	msg := models.KafkaMessageUnshortenedTop{
+		ValidUntil: top.ValidUntil,
 		Top: []struct {
 			OriginalURL string `json:"original_url"`
 			ShortCode   string `json:"short_code"`

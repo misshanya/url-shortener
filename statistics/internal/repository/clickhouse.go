@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/misshanya/url-shortener/statistics/internal/models"
+	"time"
 )
 
 type ClickHouseRepo struct {
@@ -59,6 +60,8 @@ LIMIT $1;`
 	if err != nil {
 		return nil, err
 	}
+
+	top.ValidUntil = time.Now().Add(time.Duration(ttl) * time.Second)
 
 	return &top, nil
 }
