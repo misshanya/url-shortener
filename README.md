@@ -15,13 +15,13 @@ My first practice with gRPC.
 
 To shorten URL, this service stores original URL in PostgreSQL and encodes ID into base62.
 
-To unshorten URL, it decodes base62 and tries to get original URL by code from cache (Valkey). If not in cache, it queries the PostgreSQL.
+To unshorten URL, it tries to get original URL by code from cache (Valkey). If not in cache, it decodes base62 and queries the PostgreSQL.
 
 It is a Kafka producer for topics `shortener.shortened` and `shortener.unshortened`.
 
 It is a Kafka consumer for topic `shortened.top_unshortened`.
 
-##### Caching:
+##### Caching
 
 This service gets a top of URLs by clicks for the last time (configured in .env) from Kafka and stores these URLs in Valkey with configured TTL.
 
