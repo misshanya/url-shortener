@@ -77,7 +77,7 @@ func (p *Producer) ProduceTop(ctx context.Context) {
 				p.l.Error("failed to send top to Kafka", "error", err)
 			}
 		case <-ctx.Done():
-			break
+			return
 		}
 	}
 }
