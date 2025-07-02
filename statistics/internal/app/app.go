@@ -40,6 +40,13 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 		l:   l,
 	}
 
+	// Test connection with Kafka
+	testKafkaConn, err := kafka.Dial("tcp", cfg.Kafka.Addr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to Kafka: %w", err)
+	}
+	testKafkaConn.Close()
+
 	// Create a Kafka reader
 	a.kafkaReader = kafka.NewReader(kafka.ReaderConfig{
 		Brokers:     []string{cfg.Kafka.Addr},

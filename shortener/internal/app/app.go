@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -87,6 +88,13 @@ func New(ctx context.Context, cfg *config.Config, l *slog.Logger) (*App, error) 
 			logging.UnaryServerInterceptor(InterceptorLogger(a.l), opts...),
 		),
 	)
+
+	// Test connection with Kafka
+	testKafkaConn, err := kafka.Dial("tcp", cfg.Kafka.Addr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to Kafka: %w", err)
+	}
+	testKafkaConn.Close()
 
 	// Create a Kafka reader
 	a.kafkaReader = kafka.NewReader(kafka.ReaderConfig{
