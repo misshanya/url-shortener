@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,21 +17,33 @@ import (
 	handler "github.com/misshanya/url-shortener/shortener/internal/transport/grpc"
 	"github.com/segmentio/kafka-go"
 	"github.com/valkey-io/valkey-go"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/semconv/v1.34.0"
 	"google.golang.org/grpc"
 	"log/slog"
 	"net"
 )
 
+var (
+	serviceName = "shortener"
+)
+
 type App struct {
-	cfg          *config.Config
-	l            *slog.Logger
-	lis          *net.Listener
-	dbPool       *pgxpool.Pool
-	grpcSrv      *grpc.Server
-	kafkaWriter  *kafka.Writer
-	kafkaReader  *kafka.Reader
-	valkeyClient valkey.Client
-	consumer     *consumer.Consumer
+	cfg            *config.Config
+	l              *slog.Logger
+	lis            *net.Listener
+	dbPool         *pgxpool.Pool
+	grpcSrv        *grpc.Server
+	kafkaWriter    *kafka.Writer
+	kafkaReader    *kafka.Reader
+	valkeyClient   valkey.Client
+	consumer       *consumer.Consumer
+	tracerProvider *trace.TracerProvider
 }
 
 // InterceptorLogger adapts slog logger to interceptor logger.
@@ -45,6 +58,14 @@ func New(ctx context.Context, cfg *config.Config, l *slog.Logger) (*App, error) 
 		cfg: cfg,
 		l:   l,
 	}
+
+	// Init tracing
+	tracerProvider, err := newTracerProvider(context.Background(), cfg.Tracing.CollectorAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tracer provider: %w", err)
+	}
+	a.tracerProvider = tracerProvider
+	tracer := a.tracerProvider.Tracer(serviceName)
 
 	// Add a listener address
 	lis, err := net.Listen("tcp", cfg.Server.Addr)
@@ -87,6 +108,11 @@ func New(ctx context.Context, cfg *config.Config, l *slog.Logger) (*App, error) 
 		grpc.ChainUnaryInterceptor(
 			logging.UnaryServerInterceptor(InterceptorLogger(a.l), opts...),
 		),
+		grpc.StatsHandler(
+			otelgrpc.NewServerHandler(
+				otelgrpc.WithTracerProvider(a.tracerProvider),
+			),
+		),
 	)
 
 	// Test connection with Kafka
@@ -111,7 +137,7 @@ func New(ctx context.Context, cfg *config.Config, l *slog.Logger) (*App, error) 
 
 	repo := repository.NewPostgresRepo(queries)
 	valkeyRepo := repository.NewValkeyRepo(a.valkeyClient)
-	svc := service.New(repo, valkeyRepo, a.l, a.kafkaWriter)
+	svc := service.New(repo, valkeyRepo, a.l, a.kafkaWriter, tracer)
 
 	a.consumer = consumer.New(a.l, a.kafkaReader, svc)
 
@@ -128,8 +154,10 @@ func (a *App) Start(ctx context.Context, errChan chan<- error) {
 	}
 }
 
-func (a *App) Stop() error {
+func (a *App) Stop(ctx context.Context) error {
 	a.l.Info("[!] Shutting down...")
+
+	var stopErr error
 
 	// Stop server
 	a.l.Info("Stopping gRPC server...")
@@ -145,7 +173,17 @@ func (a *App) Stop() error {
 
 	// Close Kafka connection
 	if err := a.kafkaWriter.Close(); err != nil {
-		return err
+		stopErr = errors.Join(stopErr, err)
+	}
+
+	// Shut down tracer provider
+	a.l.Info("Shutting down tracer provider...")
+	if err := a.tracerProvider.Shutdown(ctx); err != nil {
+		stopErr = errors.Join(stopErr, err)
+	}
+
+	if stopErr != nil {
+		return stopErr
 	}
 
 	a.l.Info("Stopped gracefully")
@@ -161,4 +199,31 @@ func initDB(ctx context.Context, dbURL string) (*pgxpool.Pool, error) {
 	pool.Config().MaxConns = 100 // Max 100 connections
 
 	return pool, nil
+}
+
+func newTracerProvider(ctx context.Context, collectorAddr string) (*trace.TracerProvider, error) {
+	exporter, err := otlptracegrpc.New(ctx,
+		otlptracegrpc.WithInsecure(),
+		otlptracegrpc.WithEndpoint(collectorAddr))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create an exporter: %w", err)
+	}
+
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			semconv.ServiceNameKey.String(serviceName),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create a resource: %w", err)
+	}
+
+	tracerProvider := trace.NewTracerProvider(
+		trace.WithBatcher(exporter),
+		trace.WithResource(res),
+	)
+
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+
+	return tracerProvider, err
 }

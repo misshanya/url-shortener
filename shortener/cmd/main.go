@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -41,8 +42,11 @@ func main() {
 		logger.Error("failed to start server", slog.Any("error", err))
 		os.Exit(1)
 	case <-ctx.Done():
-		if err := a.Stop(); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := a.Stop(ctx); err != nil {
 			logger.Error("failed to stop server", slog.Any("error", err))
+			os.Exit(1)
 		}
 	}
 }

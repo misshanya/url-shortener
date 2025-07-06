@@ -8,6 +8,7 @@ import (
 	"github.com/misshanya/url-shortener/shortener/internal/models"
 	"github.com/misshanya/url-shortener/shortener/pkg/base62"
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log/slog"
@@ -30,20 +31,28 @@ type Service struct {
 	vr valkeyRepo
 	l  *slog.Logger
 	kw *kafka.Writer
+	t  trace.Tracer
 }
 
-func New(repo postgresRepo, vr valkeyRepo, logger *slog.Logger, kafkaWriter *kafka.Writer) *Service {
+func New(repo postgresRepo, vr valkeyRepo, logger *slog.Logger, kafkaWriter *kafka.Writer, t trace.Tracer) *Service {
 	return &Service{
 		pr: repo,
 		vr: vr,
 		l:  logger,
 		kw: kafkaWriter,
+		t:  t,
 	}
 }
 
 func (s *Service) ShortenURL(ctx context.Context, short *models.Short) error {
+	ctx, span := s.t.Start(ctx, "ShortenURL")
+	defer span.End()
+
 	// Try to get ID by URL, and if it exists, encode and return
-	if id, err := s.pr.GetID(ctx, short.URL); err == nil {
+	ctxGet, spanGet := s.t.Start(ctx, "try-get-id-from-db")
+	id, err := s.pr.GetID(ctxGet, short.URL)
+	spanGet.End()
+	if err == nil {
 		short.Short = base62.Encode(id)
 		return nil
 	} else if !errors.Is(err, sql.ErrNoRows) {
@@ -53,7 +62,9 @@ func (s *Service) ShortenURL(ctx context.Context, short *models.Short) error {
 
 	s.l.Info("shortening url", slog.String("url", short.URL))
 
-	id, err := s.pr.StoreURL(ctx, short.URL)
+	ctxStore, spanStore := s.t.Start(ctx, "store-url")
+	id, err = s.pr.StoreURL(ctxStore, short.URL)
+	spanStore.End()
 	if err != nil {
 		s.l.Error("failed to store short by url", "error", err)
 		return status.Error(codes.Internal, "failed to store short")
@@ -73,7 +84,9 @@ func (s *Service) ShortenURL(ctx context.Context, short *models.Short) error {
 		s.l.Error("failed to marshal KafkaMessageShortened", "error", err)
 	}
 	go func() {
-		if err := s.kw.WriteMessages(context.Background(),
+		ctxKafka, spanKafka := s.t.Start(context.Background(), "write-to-kafka")
+		defer spanKafka.End()
+		if err := s.kw.WriteMessages(ctxKafka,
 			kafka.Message{
 				Topic: "shortener.shortened",
 				Value: msgMarshaled,
@@ -86,16 +99,23 @@ func (s *Service) ShortenURL(ctx context.Context, short *models.Short) error {
 }
 
 func (s *Service) GetURL(ctx context.Context, short string) (string, error) {
+	ctx, span := s.t.Start(ctx, "GetURL")
+	defer span.End()
+
 	// Decode shorted into ID
 	id := base62.Decode(short)
 
-	url, err := s.vr.GetURLByCode(ctx, short)
+	ctxGetCache, spanGetCache := s.t.Start(ctx, "get-url-from-cache")
+	url, err := s.vr.GetURLByCode(ctxGetCache, short)
+	spanGetCache.End()
 	if err != nil {
 		s.l.Error("failed to get short by url from cache", "error", err)
 	}
 
 	if url == "" {
-		url, err = s.pr.GetURL(ctx, id)
+		ctxGetDB, spanGetDB := s.t.Start(ctx, "get-url-from-db")
+		url, err = s.pr.GetURL(ctxGetDB, id)
+		spanGetDB.End()
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return "", status.Error(codes.NotFound, "short not found")
@@ -118,7 +138,9 @@ func (s *Service) GetURL(ctx context.Context, short string) (string, error) {
 		s.l.Error("failed to marshal KafkaMessageUnshortened", "error", err)
 	}
 	go func() {
-		if err := s.kw.WriteMessages(context.Background(),
+		ctxKafka, spanKafka := s.t.Start(context.Background(), "write-to-kafka")
+		defer spanKafka.End()
+		if err := s.kw.WriteMessages(ctxKafka,
 			kafka.Message{
 				Topic: "shortener.unshortened",
 				Value: msgMarshaled,
@@ -131,6 +153,9 @@ func (s *Service) GetURL(ctx context.Context, short string) (string, error) {
 }
 
 func (s *Service) SetTop(ctx context.Context, msg *models.KafkaMessageUnshortenedTop) {
+	ctx, span := s.t.Start(ctx, "SetTop")
+	defer span.End()
+
 	top := models.UnshortenedTop{
 		ValidUntil: msg.ValidUntil,
 		Top: []struct {
@@ -141,7 +166,9 @@ func (s *Service) SetTop(ctx context.Context, msg *models.KafkaMessageUnshortene
 
 	ttl := top.ValidUntil.Sub(time.Now())
 
-	err := s.vr.SetTop(ctx, top, ttl)
+	ctxStore, spanStore := s.t.Start(ctx, "store top in cache")
+	err := s.vr.SetTop(ctxStore, top, ttl)
+	spanStore.End()
 	if err != nil {
 		s.l.Error("failed to set top to cache", "error", err)
 		return

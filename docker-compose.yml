@@ -24,6 +24,7 @@ services:
       KAFKA_ADDR: "${KAFKA_ADDR}"
       VALKEY_ADDR: "shortener_cache:6379"
       VALKEY_PASSWORD: "${SHORTENER_CACHE_PASSWORD}"
+      TRACING_COLLECTOR_ADDR: "shortener_jaeger:4317"
     networks:
       - db
       - shortener

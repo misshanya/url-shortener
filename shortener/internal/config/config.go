@@ -9,6 +9,7 @@ type Config struct {
 	Postgres postgres
 	Kafka    kafka
 	Valkey   valkey
+	Tracing  tracing
 }
 
 type server struct {
@@ -26,6 +27,10 @@ type kafka struct {
 type valkey struct {
 	Addr     string `env:"VALKEY_ADDR" env-required:"true"`
 	Password string `env:"VALKEY_PASSWORD" env-required:"true"`
+}
+
+type tracing struct {
+	CollectorAddr string `env:"TRACING_COLLECTOR_ADDR" env-required:"true"`
 }
 
 func NewConfig() (*Config, error) {
