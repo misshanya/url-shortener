@@ -3,12 +3,21 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/misshanya/url-shortener/gateway/internal/config"
 	"github.com/misshanya/url-shortener/gateway/internal/service"
 	handler "github.com/misshanya/url-shortener/gateway/internal/transport/http"
 	pb "github.com/misshanya/url-shortener/gen/go/v1"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/semconv/v1.34.0"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"log/slog"
@@ -16,11 +25,16 @@ import (
 	"time"
 )
 
+var (
+	serviceName = "gateway"
+)
+
 type App struct {
-	e        *echo.Echo
-	grpcConn *grpc.ClientConn
-	cfg      *config.Config
-	l        *slog.Logger
+	e              *echo.Echo
+	grpcConn       *grpc.ClientConn
+	cfg            *config.Config
+	l              *slog.Logger
+	tracerProvider *trace.TracerProvider
 }
 
 func New(cfg *config.Config, l *slog.Logger) (*App, error) {
@@ -29,8 +43,24 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 		l:   l,
 	}
 
+	// Init tracing
+	tracerProvider, err := newTracerProvider(context.Background(), cfg.Tracing.CollectorAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tracer provider: %w", err)
+	}
+	a.tracerProvider = tracerProvider
+
 	// Init gRPC connection to the shortener service
-	grpcConn, err := grpc.NewClient(a.cfg.GRPCClient.ServerAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	grpcConn, err := grpc.NewClient(a.cfg.GRPCClient.ServerAddress,
+		grpc.WithTransportCredentials(
+			insecure.NewCredentials(),
+		),
+		grpc.WithStatsHandler(
+			otelgrpc.NewClientHandler(
+				otelgrpc.WithTracerProvider(a.tracerProvider),
+			),
+		),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +82,9 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 	a.e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"*"}, // Change in production !!!
 	}))
+
+	// Tracer
+	a.e.Use(otelecho.Middleware(serviceName, otelecho.WithTracerProvider(a.tracerProvider)))
 
 	// Logger
 	a.e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
@@ -112,10 +145,42 @@ func (a *App) Stop(ctx context.Context) error {
 		stopErr = errors.Join(stopErr, err)
 	}
 
+	a.l.Info("Shutting down tracer provider...")
+	if err := a.tracerProvider.Shutdown(ctx); err != nil {
+		stopErr = errors.Join(stopErr, err)
+	}
+
 	if stopErr != nil {
 		return stopErr
 	}
 
 	a.l.Info("Stopped gracefully")
 	return nil
+}
+
+func newTracerProvider(ctx context.Context, collectorAddr string) (*trace.TracerProvider, error) {
+	exporter, err := otlptracegrpc.New(ctx,
+		otlptracegrpc.WithInsecure(),
+		otlptracegrpc.WithEndpoint(collectorAddr))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create an exporter: %w", err)
+	}
+
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			semconv.ServiceNameKey.String(serviceName),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create a resource: %w", err)
+	}
+
+	tracerProvider := trace.NewTracerProvider(
+		trace.WithBatcher(exporter),
+		trace.WithResource(res),
+	)
+
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+
+	return tracerProvider, err
 }

@@ -7,6 +7,7 @@ import (
 type Config struct {
 	Server     server
 	GRPCClient gRPCClient
+	Tracing    tracing
 }
 
 type server struct {
@@ -16,6 +17,10 @@ type server struct {
 
 type gRPCClient struct {
 	ServerAddress string `env:"GRPC_SERVER_ADDR" env-required:"true"`
+}
+
+type tracing struct {
+	CollectorAddr string `env:"TRACING_COLLECTOR_ADDR" env-required:"true"`
 }
 
 func NewConfig() (*Config, error) {

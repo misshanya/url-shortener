@@ -62,6 +62,7 @@ services:
       SERVER_ADDR: "0.0.0.0:${GATEWAY_PORT}"
       PUBLIC_HOST: "${PUBLIC_HOST}"
       GRPC_SERVER_ADDR: "shortener_service:${SHORTENER_SERVER_PORT}"
+      TRACING_COLLECTOR_ADDR: "shortener_jaeger:4317"
     ports:
       - "${GATEWAY_PORT}:${GATEWAY_PORT}"
     networks:
@@ -176,6 +177,15 @@ services:
       GF_SERVER_SERVE_FROM_SUB_PATH: "${STATISTICS_GF_SERVE_FROM_SUB_PATH}"
       GF_SERVER_DOMAIN: "${STATISTICS_GF_DOMAIN}"
       GF_SERVER_PROXY_ENABLE: "${STATISTICS_GF_PROXY_ENABLE}"
+    restart: unless-stopped
+    networks:
+      - shortener
+
+  jaeger:
+    image: jaegertracing/jaeger:2.8.0
+    container_name: shortener_jaeger
+    ports:
+      - "16686:16686"
     restart: unless-stopped
     networks:
       - shortener
