@@ -16,22 +16,33 @@ import (
 	"github.com/misshanya/url-shortener/statistics/internal/repository"
 	"github.com/misshanya/url-shortener/statistics/internal/service"
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/semconv/v1.34.0"
 
 	"log/slog"
 	"net/http"
 	"time"
 )
 
+var (
+	serviceName = "statistics"
+)
+
 type App struct {
-	cfg         *config.Config
-	l           *slog.Logger
-	kafkaReader *kafka.Reader
-	kafkaWriter *kafka.Writer
-	consumer    *consumer.Consumer
-	producer    *producer.Producer
-	e           *echo.Echo
-	svc         *service.Service
-	chConn      clickhouse.Conn
+	cfg            *config.Config
+	l              *slog.Logger
+	kafkaReader    *kafka.Reader
+	kafkaWriter    *kafka.Writer
+	consumer       *consumer.Consumer
+	producer       *producer.Producer
+	e              *echo.Echo
+	svc            *service.Service
+	chConn         clickhouse.Conn
+	tracerProvider *trace.TracerProvider
 }
 
 func New(cfg *config.Config, l *slog.Logger) (*App, error) {
@@ -39,6 +50,14 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 		cfg: cfg,
 		l:   l,
 	}
+
+	// Init tracing
+	tracerProvider, err := newTracerProvider(context.Background(), cfg.Tracing.CollectorAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tracer provider: %w", err)
+	}
+	a.tracerProvider = tracerProvider
+	tracer := a.tracerProvider.Tracer(serviceName)
 
 	// Test connection with Kafka
 	testKafkaConn, err := kafka.Dial("tcp", cfg.Kafka.Addr)
@@ -126,7 +145,7 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 	// Create a repository
 	repo := repository.NewClickHouseRepo(a.chConn)
 
-	a.svc = service.New(a.l, m, repo)
+	a.svc = service.New(a.l, m, repo, tracer)
 	a.consumer = consumer.New(a.l, a.kafkaReader, a.svc)
 	a.producer = producer.New(a.l, a.svc, a.kafkaWriter, cfg.TopTTL, cfg.TopAmount)
 
@@ -176,4 +195,31 @@ func (a *App) Stop(ctx context.Context) error {
 
 	a.l.Info("Stopped gracefully")
 	return nil
+}
+
+func newTracerProvider(ctx context.Context, collectorAddr string) (*trace.TracerProvider, error) {
+	exporter, err := otlptracegrpc.New(ctx,
+		otlptracegrpc.WithInsecure(),
+		otlptracegrpc.WithEndpoint(collectorAddr))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create an exporter: %w", err)
+	}
+
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			semconv.ServiceNameKey.String(serviceName),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create a resource: %w", err)
+	}
+
+	tracerProvider := trace.NewTracerProvider(
+		trace.WithBatcher(exporter),
+		trace.WithResource(res),
+	)
+
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+
+	return tracerProvider, err
 }

@@ -5,6 +5,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/misshanya/url-shortener/statistics/internal/metrics"
 	"github.com/misshanya/url-shortener/statistics/internal/models"
+	"go.opentelemetry.io/otel/trace"
 	"log/slog"
 	"time"
 )
@@ -22,9 +23,11 @@ type Service struct {
 
 	shortenedCh   chan models.ClickHouseEventShortened
 	unshortenedCh chan models.ClickHouseEventUnshortened
+
+	t trace.Tracer
 }
 
-func New(l *slog.Logger, m *metrics.Metrics, r clickHouseRepo) *Service {
+func New(l *slog.Logger, m *metrics.Metrics, r clickHouseRepo, t trace.Tracer) *Service {
 	return &Service{
 		l: l,
 		m: m,
@@ -32,10 +35,17 @@ func New(l *slog.Logger, m *metrics.Metrics, r clickHouseRepo) *Service {
 
 		shortenedCh:   make(chan models.ClickHouseEventShortened, 10),
 		unshortenedCh: make(chan models.ClickHouseEventUnshortened, 10),
+
+		t: t,
 	}
 }
 
 func (s *Service) Shortened(msg *models.KafkaMessageShortened) {
+	ctx := context.Background()
+
+	ctx, span := s.t.Start(ctx, "Shortened event")
+	defer span.End()
+
 	s.l.Info("Shortened URL",
 		"url", msg.OriginalURL,
 		"code", msg.ShortCode,
@@ -43,18 +53,28 @@ func (s *Service) Shortened(msg *models.KafkaMessageShortened) {
 	)
 
 	// Update metrics
+	_, spanMetrics := s.t.Start(ctx, "Update metrics")
 	s.m.Shorten()
+	spanMetrics.End()
 
 	// Send to the ClickHouse batch channel
+	_, spanClickHouse := s.t.Start(ctx, "Send to the ClickHouse channel")
 	s.shortenedCh <- models.ClickHouseEventShortened{
+		Ctx:         ctx,
 		EventID:     uuid.New(),
 		OriginalURL: msg.OriginalURL,
 		ShortCode:   msg.ShortCode,
 		ShortenedAt: msg.ShortenedAt,
 	}
+	spanClickHouse.End()
 }
 
 func (s *Service) Unshortened(msg *models.KafkaMessageUnshortened) {
+	ctx := context.Background()
+
+	ctx, span := s.t.Start(ctx, "Unshortened event")
+	defer span.End()
+
 	s.l.Info("Clicked on shortened URL",
 		"url", msg.OriginalURL,
 		"code", msg.ShortCode,
@@ -62,15 +82,20 @@ func (s *Service) Unshortened(msg *models.KafkaMessageUnshortened) {
 	)
 
 	// Update metrics
+	_, spanMetrics := s.t.Start(ctx, "Update metrics")
 	s.m.Unshorten()
+	spanMetrics.End()
 
 	// Send to the ClickHouse batch channel
+	_, spanClickHouse := s.t.Start(ctx, "Send to the ClickHouse channel")
 	s.unshortenedCh <- models.ClickHouseEventUnshortened{
+		Ctx:           ctx,
 		EventID:       uuid.New(),
 		OriginalURL:   msg.OriginalURL,
 		ShortCode:     msg.ShortCode,
 		UnshortenedAt: msg.UnshortenedAt,
 	}
+	spanClickHouse.End()
 }
 
 func (s *Service) ShortenedBatchWriter(ctx context.Context) {
@@ -81,10 +106,15 @@ func (s *Service) ShortenedBatchWriter(ctx context.Context) {
 	for {
 		select {
 		case event := <-s.shortenedCh:
+			_, spanEvent := s.t.Start(event.Ctx, "Append event to the slice")
 			shortenedEvents = append(shortenedEvents, event)
+			spanEvent.End()
+
 			if len(shortenedEvents) >= 100 {
 				s.l.Info("Writing shortened event, len > 100")
-				err := s.r.WriteShortened(ctx, shortenedEvents)
+				ctxWrite, spanWrite := s.t.Start(ctx, "Write shortened events to the database, len > 100")
+				err := s.r.WriteShortened(ctxWrite, shortenedEvents)
+				spanWrite.End()
 				if err != nil {
 					s.l.Error("Failed to write events to DB", "error", err)
 				}
@@ -93,7 +123,9 @@ func (s *Service) ShortenedBatchWriter(ctx context.Context) {
 		case <-ticker.C:
 			if len(shortenedEvents) > 0 {
 				s.l.Info("Writing shortened event, ticker")
-				err := s.r.WriteShortened(ctx, shortenedEvents)
+				ctxWrite, spanWrite := s.t.Start(ctx, "Write shortened events to the database, ticker")
+				err := s.r.WriteShortened(ctxWrite, shortenedEvents)
+				spanWrite.End()
 				if err != nil {
 					s.l.Error("Failed to write events to DB", "error", err)
 				}
@@ -113,10 +145,15 @@ func (s *Service) UnshortenedBatchWriter(ctx context.Context) {
 	for {
 		select {
 		case event := <-s.unshortenedCh:
+			_, spanEvent := s.t.Start(event.Ctx, "Append event to the slice")
 			unshortenedEvents = append(unshortenedEvents, event)
+			spanEvent.End()
+
 			if len(unshortenedEvents) >= 100 {
 				s.l.Info("Writing unshortened event, len > 100")
-				err := s.r.WriteUnshortened(ctx, unshortenedEvents)
+				ctxWrite, spanWrite := s.t.Start(ctx, "Write shortened events to the database, len > 100")
+				err := s.r.WriteUnshortened(ctxWrite, unshortenedEvents)
+				spanWrite.End()
 				if err != nil {
 					s.l.Error("Failed to write events to DB", "error", err)
 				}
@@ -125,7 +162,9 @@ func (s *Service) UnshortenedBatchWriter(ctx context.Context) {
 		case <-ticker.C:
 			if len(unshortenedEvents) > 0 {
 				s.l.Info("Writing unshortened event, ticker")
-				err := s.r.WriteUnshortened(ctx, unshortenedEvents)
+				ctxWrite, spanWrite := s.t.Start(ctx, "Write shortened events to the database, ticker")
+				err := s.r.WriteUnshortened(ctxWrite, unshortenedEvents)
+				spanWrite.End()
 				if err != nil {
 					s.l.Error("Failed to write events to DB", "error", err)
 				}
@@ -138,5 +177,8 @@ func (s *Service) UnshortenedBatchWriter(ctx context.Context) {
 }
 
 func (s *Service) GetTopUnshortened(ctx context.Context, amount, ttl int) (*models.UnshortenedTop, error) {
+	ctx, span := s.t.Start(ctx, "GetTopUnshortened")
+	defer span.End()
+
 	return s.r.GetTopUnshortened(ctx, amount, ttl)
 }

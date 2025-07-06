@@ -132,6 +132,7 @@ services:
       CLICKHOUSE_PASSWORD: "${STATISTICS_CLICKHOUSE_PASSWORD}"
       TOP_TTL: "${CACHING_TTL}"
       TOP_AMOUNT: "${CACHING_SIZE}"
+      TRACING_COLLECTOR_ADDR: "shortener_jaeger:4317"
     depends_on:
       - shortener
       - kafka

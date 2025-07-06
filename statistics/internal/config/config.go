@@ -8,6 +8,7 @@ type Config struct {
 	Kafka      kafka
 	HttpSrv    httpServer
 	ClickHouse clickHouse
+	Tracing    tracing
 
 	TopTTL    int `env:"TOP_TTL" env-default:"3600"`
 	TopAmount int `env:"TOP_AMOUNT" env-default:"100"`
@@ -25,6 +26,10 @@ type clickHouse struct {
 	Addr     string `env:"CLICKHOUSE_ADDR" env-required:"true"`
 	User     string `env:"CLICKHOUSE_USER" env-required:"true"`
 	Password string `env:"CLICKHOUSE_PASSWORD" env-required:"true"`
+}
+
+type tracing struct {
+	CollectorAddr string `env:"TRACING_COLLECTOR_ADDR" env-required:"true"`
 }
 
 func NewConfig() (*Config, error) {
