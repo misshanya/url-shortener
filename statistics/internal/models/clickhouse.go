@@ -1,13 +1,13 @@
 package models
 
 import (
-	"context"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/propagation"
 	"time"
 )
 
 type ClickHouseEventShortened struct {
-	Ctx         context.Context
+	Carrier     propagation.MapCarrier
 	EventID     uuid.UUID
 	OriginalURL string
 	ShortCode   string
@@ -15,7 +15,7 @@ type ClickHouseEventShortened struct {
 }
 
 type ClickHouseEventUnshortened struct {
-	Ctx           context.Context
+	Carrier       propagation.MapCarrier
 	EventID       uuid.UUID
 	OriginalURL   string
 	ShortCode     string

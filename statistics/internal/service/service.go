@@ -5,6 +5,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/misshanya/url-shortener/statistics/internal/metrics"
 	"github.com/misshanya/url-shortener/statistics/internal/models"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"log/slog"
 	"time"
@@ -58,9 +59,14 @@ func (s *Service) Shortened(msg *models.KafkaMessageShortened) {
 	spanMetrics.End()
 
 	// Send to the ClickHouse batch channel
+
+	carrier := propagation.MapCarrier{}
+	propagator := propagation.TraceContext{}
+	propagator.Inject(ctx, carrier)
+
 	_, spanClickHouse := s.t.Start(ctx, "Send to the ClickHouse channel")
 	s.shortenedCh <- models.ClickHouseEventShortened{
-		Ctx:         ctx,
+		Carrier:     carrier,
 		EventID:     uuid.New(),
 		OriginalURL: msg.OriginalURL,
 		ShortCode:   msg.ShortCode,
@@ -87,9 +93,14 @@ func (s *Service) Unshortened(msg *models.KafkaMessageUnshortened) {
 	spanMetrics.End()
 
 	// Send to the ClickHouse batch channel
+
+	carrier := propagation.MapCarrier{}
+	propagator := propagation.TraceContext{}
+	propagator.Inject(ctx, carrier)
+
 	_, spanClickHouse := s.t.Start(ctx, "Send to the ClickHouse channel")
 	s.unshortenedCh <- models.ClickHouseEventUnshortened{
-		Ctx:           ctx,
+		Carrier:       carrier,
 		EventID:       uuid.New(),
 		OriginalURL:   msg.OriginalURL,
 		ShortCode:     msg.ShortCode,
@@ -106,7 +117,10 @@ func (s *Service) ShortenedBatchWriter(ctx context.Context) {
 	for {
 		select {
 		case event := <-s.shortenedCh:
-			_, spanEvent := s.t.Start(event.Ctx, "Append event to the slice")
+			propagator := propagation.TraceContext{}
+			ctxEvent := propagator.Extract(context.Background(), event.Carrier)
+
+			_, spanEvent := s.t.Start(ctxEvent, "Append event to the slice")
 			shortenedEvents = append(shortenedEvents, event)
 			spanEvent.End()
 
@@ -145,7 +159,10 @@ func (s *Service) UnshortenedBatchWriter(ctx context.Context) {
 	for {
 		select {
 		case event := <-s.unshortenedCh:
-			_, spanEvent := s.t.Start(event.Ctx, "Append event to the slice")
+			propagator := propagation.TraceContext{}
+			ctxEvent := propagator.Extract(context.Background(), event.Carrier)
+
+			_, spanEvent := s.t.Start(ctxEvent, "Append event to the slice")
 			unshortenedEvents = append(unshortenedEvents, event)
 			spanEvent.End()
 
