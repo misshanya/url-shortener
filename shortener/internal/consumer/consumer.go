@@ -3,6 +3,7 @@ package consumer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/misshanya/url-shortener/shortener/internal/models"
 	"github.com/segmentio/kafka-go"
 	"log/slog"
@@ -31,6 +32,9 @@ func (c *Consumer) ReadMessages(ctx context.Context) {
 	for {
 		m, err := c.kr.ReadMessage(ctx)
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
 			c.l.Error("Failed to read message", "error", err)
 			continue
 		}
