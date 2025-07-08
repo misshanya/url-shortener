@@ -1,7 +1,7 @@
 # URL Shortener
 
-A simple service that shortens URLs.
-My first practice with gRPC.
+A service that shortens URLs.
+My first practice with gRPC & microservices in event-driven system with distributed tracing.
 
 ## Architecture
 
