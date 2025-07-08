@@ -84,7 +84,7 @@ services:
     networks:
       - shortener
     depends_on:
-      - gateway
+      - shortener
 
   kafka:
     container_name: shortener_kafka
