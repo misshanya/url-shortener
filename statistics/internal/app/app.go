@@ -189,6 +189,12 @@ func (a *App) Stop(ctx context.Context) error {
 		stopErr = errors.Join(stopErr, err)
 	}
 
+	// Shut down tracer provider
+	a.l.Info("Shutting down tracer provider...")
+	if err := a.tracerProvider.Shutdown(ctx); err != nil {
+		stopErr = errors.Join(stopErr, err)
+	}
+
 	if stopErr != nil {
 		return stopErr
 	}
