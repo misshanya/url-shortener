@@ -41,10 +41,8 @@ func New(l *slog.Logger, m *metrics.Metrics, r clickHouseRepo, t trace.Tracer) *
 	}
 }
 
-func (s *Service) Shortened(msg *models.KafkaMessageShortened) {
-	ctx := context.Background()
-
-	ctx, span := s.t.Start(ctx, "Shortened event")
+func (s *Service) Shortened(ctx context.Context, msg *models.KafkaMessageShortened) {
+	ctx, span := s.t.Start(ctx, "Shortened event in service")
 	defer span.End()
 
 	s.l.Info("Shortened URL",
@@ -75,10 +73,8 @@ func (s *Service) Shortened(msg *models.KafkaMessageShortened) {
 	spanClickHouse.End()
 }
 
-func (s *Service) Unshortened(msg *models.KafkaMessageUnshortened) {
-	ctx := context.Background()
-
-	ctx, span := s.t.Start(ctx, "Unshortened event")
+func (s *Service) Unshortened(ctx context.Context, msg *models.KafkaMessageUnshortened) {
+	ctx, span := s.t.Start(ctx, "Unshortened event in service")
 	defer span.End()
 
 	s.l.Info("Clicked on shortened URL",

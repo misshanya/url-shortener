@@ -8,6 +8,7 @@ import (
 	"github.com/misshanya/url-shortener/shortener/internal/models"
 	"github.com/misshanya/url-shortener/shortener/pkg/base62"
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -74,6 +75,11 @@ func (s *Service) ShortenURL(ctx context.Context, short *models.Short) error {
 	short.Short = base62.Encode(id)
 
 	// Write to Kafka that we are just shortened the URL
+
+	carrier := propagation.MapCarrier{}
+	propagator := propagation.TraceContext{}
+	propagator.Inject(ctx, carrier)
+
 	msg := models.KafkaMessageShortened{
 		ShortenedAt: time.Now(),
 		OriginalURL: short.URL,
@@ -84,12 +90,27 @@ func (s *Service) ShortenURL(ctx context.Context, short *models.Short) error {
 		s.l.Error("failed to marshal KafkaMessageShortened", "error", err)
 	}
 	go func() {
-		ctxKafka, spanKafka := s.t.Start(context.Background(), "write-to-kafka")
+		propagatorKafka := propagation.TraceContext{}
+		ctxKafka := propagatorKafka.Extract(context.Background(), carrier)
+
+		// Kafka message headers for the trace context
+		headers := make([]kafka.Header, len(carrier.Keys()))
+
+		for i, key := range carrier.Keys() {
+			headers[i] = kafka.Header{
+				Key:   key,
+				Value: []byte(carrier.Get(key)),
+			}
+		}
+
+		ctxKafka, spanKafka := s.t.Start(ctxKafka, "write-to-kafka")
 		defer spanKafka.End()
+
 		if err := s.kw.WriteMessages(ctxKafka,
 			kafka.Message{
-				Topic: "shortener.shortened",
-				Value: msgMarshaled,
+				Headers: headers,
+				Topic:   "shortener.shortened",
+				Value:   msgMarshaled,
 			}); err != nil {
 			s.l.Error("failed to write messages to Kafka", "error", err)
 		}
@@ -128,6 +149,11 @@ func (s *Service) GetURL(ctx context.Context, short string) (string, error) {
 	}
 
 	// Write to Kafka that we are just unshortened URL
+
+	carrier := propagation.MapCarrier{}
+	propagator := propagation.TraceContext{}
+	propagator.Inject(ctx, carrier)
+
 	msg := models.KafkaMessageUnshortened{
 		UnshortenedAt: time.Now(),
 		OriginalURL:   url,
@@ -138,12 +164,27 @@ func (s *Service) GetURL(ctx context.Context, short string) (string, error) {
 		s.l.Error("failed to marshal KafkaMessageUnshortened", "error", err)
 	}
 	go func() {
-		ctxKafka, spanKafka := s.t.Start(context.Background(), "write-to-kafka")
+		propagatorKafka := propagation.TraceContext{}
+		ctxKafka := propagatorKafka.Extract(context.Background(), carrier)
+
+		// Kafka message headers for the trace context
+		headers := make([]kafka.Header, len(carrier.Keys()))
+
+		for i, key := range carrier.Keys() {
+			headers[i] = kafka.Header{
+				Key:   key,
+				Value: []byte(carrier.Get(key)),
+			}
+		}
+
+		ctxKafka, spanKafka := s.t.Start(ctxKafka, "write-to-kafka")
 		defer spanKafka.End()
+
 		if err := s.kw.WriteMessages(ctxKafka,
 			kafka.Message{
-				Topic: "shortener.unshortened",
-				Value: msgMarshaled,
+				Headers: headers,
+				Topic:   "shortener.unshortened",
+				Value:   msgMarshaled,
 			}); err != nil {
 			s.l.Error("failed to write messages to Kafka", "error", err)
 		}
