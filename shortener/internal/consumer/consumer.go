@@ -6,6 +6,7 @@ import (
 	"errors"
 	"github.com/misshanya/url-shortener/shortener/internal/models"
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel/propagation"
 	"log/slog"
 )
 
@@ -43,6 +44,18 @@ func (c *Consumer) ReadMessages(ctx context.Context) {
 			continue
 		}
 
+		propagator := propagation.TraceContext{}
+		carrier := propagation.MapCarrier{}
+
+		// Get trace context from message headers
+		if len(m.Headers) > 0 {
+			for _, header := range m.Headers {
+				carrier.Set(header.Key, string(header.Value))
+			}
+		}
+
+		ctxEvent := propagator.Extract(ctx, carrier)
+
 		var msg models.KafkaMessageUnshortenedTop
 		if err := json.Unmarshal(m.Value, &msg); err != nil {
 			c.l.Error("Failed to unmarshal JSON",
@@ -51,6 +64,6 @@ func (c *Consumer) ReadMessages(ctx context.Context) {
 			continue
 		}
 
-		c.svc.SetTop(ctx, &msg)
+		c.svc.SetTop(ctxEvent, &msg)
 	}
 }

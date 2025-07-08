@@ -147,7 +147,7 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 
 	a.svc = service.New(a.l, m, repo, tracer)
 	a.consumer = consumer.New(a.l, a.kafkaReader, a.svc, tracer)
-	a.producer = producer.New(a.l, a.svc, a.kafkaWriter, cfg.TopTTL, cfg.TopAmount)
+	a.producer = producer.New(a.l, a.svc, a.kafkaWriter, cfg.TopTTL, cfg.TopAmount, tracer)
 
 	return a, nil
 }
