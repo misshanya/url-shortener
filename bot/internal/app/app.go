@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/go-telegram/bot"
 	"github.com/misshanya/url-shortener/bot/internal/config"
@@ -91,12 +92,23 @@ func (a *App) Start(ctx context.Context) {
 	a.b.Start(ctx)
 }
 
-func (a *App) Stop() error {
+func (a *App) Stop(ctx context.Context) error {
 	a.l.Info("[!] Shutting down...")
+
+	var stopErr error
 
 	a.l.Info("Closing gRPC connection...")
 	if err := a.grpcConn.Close(); err != nil {
-		return err
+		stopErr = errors.Join(stopErr, err)
+	}
+
+	a.l.Info("Shutting down tracer provider...")
+	if err := a.tracerProvider.Shutdown(ctx); err != nil {
+		stopErr = errors.Join(stopErr, err)
+	}
+
+	if stopErr != nil {
+		return stopErr
 	}
 
 	a.l.Info("Stopped gracefully")

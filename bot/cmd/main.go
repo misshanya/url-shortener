@@ -38,7 +38,7 @@ func main() {
 	<-ctx.Done()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := a.Stop(); err != nil {
+	if err := a.Stop(ctx); err != nil {
 		logger.Error("failed to stop server", slog.Any("error", err))
 		os.Exit(1)
 	}
