@@ -64,6 +64,7 @@ services:
       PUBLIC_HOST: "${PUBLIC_HOST}"
       GRPC_SERVER_ADDR: "shortener_service:${SHORTENER_SERVER_PORT}"
       TRACING_COLLECTOR_ADDR: "shortener_jaeger:4317"
+      CORS_ORIGIN: "${CORS_ORIGIN}"
     ports:
       - "${GATEWAY_PORT}:${GATEWAY_PORT}"
     networks:

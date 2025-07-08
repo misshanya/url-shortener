@@ -13,6 +13,7 @@ type Config struct {
 type server struct {
 	Addr       string `env:"SERVER_ADDR" env-default:":8080"`
 	PublicHost string `env:"PUBLIC_HOST" env-default:"localhost:8080"`
+	CORSOrigin string `env:"CORS_ORIGIN" env-default:"localhost:8080"`
 }
 
 type gRPCClient struct {

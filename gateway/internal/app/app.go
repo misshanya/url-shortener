@@ -80,7 +80,7 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 
 	// CORS
 	a.e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"*"}, // Change in production !!!
+		AllowOrigins: []string{cfg.Server.CORSOrigin},
 	}))
 
 	// Tracer
