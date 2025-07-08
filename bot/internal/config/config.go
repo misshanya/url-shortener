@@ -7,6 +7,7 @@ import (
 type Config struct {
 	Bot        bot
 	GRPCClient gRPCClient
+	Tracing    tracing
 }
 
 type gRPCClient struct {
@@ -16,6 +17,10 @@ type gRPCClient struct {
 type bot struct {
 	Token      string `env:"BOT_TOKEN" env-required:"true"`
 	PublicHost string `env:"PUBLIC_HOST" env-default:"http://localhost:8080/"`
+}
+
+type tracing struct {
+	CollectorAddr string `env:"TRACING_COLLECTOR_ADDR" env-required:"true"`
 }
 
 func NewConfig() (*Config, error) {

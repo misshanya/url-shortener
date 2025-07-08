@@ -5,6 +5,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 	"log/slog"
 	"net/url"
 )
@@ -16,10 +17,11 @@ type service interface {
 type Handler struct {
 	l *slog.Logger
 	s service
+	t trace.Tracer
 }
 
-func New(logger *slog.Logger, svc service) *Handler {
-	return &Handler{l: logger, s: svc}
+func New(logger *slog.Logger, svc service, t trace.Tracer) *Handler {
+	return &Handler{l: logger, s: svc, t: t}
 }
 
 func (h *Handler) Default(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -41,6 +43,9 @@ func (h *Handler) Default(ctx context.Context, b *bot.Bot, update *models.Update
 	if _, err := url.ParseRequestURI(update.InlineQuery.Query); err != nil {
 		return
 	}
+
+	ctx, span := h.t.Start(ctx, "Shorten URL")
+	defer span.End()
 
 	// Short URL
 	short, err := h.s.ShortenURL(ctx, update.InlineQuery.Query)
