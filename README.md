@@ -63,6 +63,8 @@ This strategy helps to [cache URLs](#caching) in the `shortener` service.
 - Kafka (UI is available on port 8088)
 - Prometheus
 - Grafana (available on port 8089)
+- OpenTelemetry
+- Jaeger (UI is available on port 16686)
 
 ## How to
 
