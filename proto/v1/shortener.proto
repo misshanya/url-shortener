@@ -18,7 +18,7 @@ message ShortenURLResponse {
 }
 
 message GetURLRequest {
-  string hash = 1;
+  string code = 1;
 }
 
 message GetURLResponse {
