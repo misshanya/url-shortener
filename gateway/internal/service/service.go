@@ -57,7 +57,7 @@ func (s *Service) ShortenURL(ctx context.Context, url string) (string, *models.H
 		}
 	}
 
-	short := s.publicHost + resp.Url
+	short := s.publicHost + resp.Code
 	return short, nil
 }
 
