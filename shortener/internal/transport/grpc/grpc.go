@@ -41,9 +41,9 @@ func (h *Handler) ShortenURL(ctx context.Context, req *pb.ShortenURLRequest) (*p
 }
 
 func (h *Handler) GetURL(ctx context.Context, req *pb.GetURLRequest) (*pb.GetURLResponse, error) {
-	hash := req.Hash
+	code := req.Code
 
-	originalURL, err := h.service.GetURL(ctx, hash)
+	originalURL, err := h.service.GetURL(ctx, code)
 	if err != nil {
 		return nil, err
 	}
