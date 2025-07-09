@@ -118,7 +118,7 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 
 	// Connect handlers to the routes
 	a.e.POST("/shorten", shortenerHandler.ShortenURL)
-	a.e.GET("/:hash", shortenerHandler.UnshortenURL)
+	a.e.GET("/:code", shortenerHandler.UnshortenURL)
 
 	return a, nil
 }

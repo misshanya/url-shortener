@@ -10,7 +10,7 @@ import (
 
 type service interface {
 	ShortenURL(ctx context.Context, url string) (string, *models.HTTPError)
-	UnshortenURL(ctx context.Context, hash string) (string, *models.HTTPError)
+	UnshortenURL(ctx context.Context, code string) (string, *models.HTTPError)
 }
 
 type Handler struct {
@@ -41,9 +41,9 @@ func (h *Handler) ShortenURL(c echo.Context) error {
 func (h *Handler) UnshortenURL(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	hash := c.Param("hash")
+	code := c.Param("code")
 
-	url, httpErr := h.service.UnshortenURL(ctx, hash)
+	url, httpErr := h.service.UnshortenURL(ctx, code)
 	if httpErr != nil {
 		return echo.NewHTTPError(httpErr.Code, httpErr.Message)
 	}

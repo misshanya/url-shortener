@@ -36,6 +36,8 @@ github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWE
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/misshanya/url-shortener v0.0.0-20250629190547-5c8996226358 h1:oRFFGAAod/8RIgjfnGCJHVI1qZ88/nXZPXO9euvT9Jo=
 github.com/misshanya/url-shortener v0.0.0-20250629190547-5c8996226358/go.mod h1:JB0WIGISSLgeMm9mt4ZXN3gszX6VbuXzt0qraiHQR9E=
+github.com/misshanya/url-shortener v0.0.0-20250709190758-1601b98736fc h1:yZxonXA084GW/pQxfVq7a64y2zLKIShGBixIx9oyX+M=
+github.com/misshanya/url-shortener v0.0.0-20250709190758-1601b98736fc/go.mod h1:RhwOnAmV8rCJt3V7xHOWpV7xYV+C89+maojf47djtRE=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rogpeppe/go-internal v1.13.1 h1:KvO1DLK/DRN07sQ1LQKScxyZJuNnedQ5/wKSR38lUII=

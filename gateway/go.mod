@@ -5,7 +5,7 @@ go 1.24
 require (
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/labstack/echo/v4 v4.13.4
-	github.com/misshanya/url-shortener v0.0.0-20250629190547-5c8996226358
+	github.com/misshanya/url-shortener v0.0.0-20250709190758-1601b98736fc
 	go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.62.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.62.0
 	go.opentelemetry.io/otel v1.37.0

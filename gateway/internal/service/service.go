@@ -61,8 +61,8 @@ func (s *Service) ShortenURL(ctx context.Context, url string) (string, *models.H
 	return short, nil
 }
 
-func (s *Service) UnshortenURL(ctx context.Context, hash string) (string, *models.HTTPError) {
-	resp, err := s.client.GetURL(ctx, &pb.GetURLRequest{Hash: hash})
+func (s *Service) UnshortenURL(ctx context.Context, code string) (string, *models.HTTPError) {
+	resp, err := s.client.GetURL(ctx, &pb.GetURLRequest{Code: code})
 	if httpErr := mapGRPCError(err); httpErr != nil {
 		return "", &models.HTTPError{
 			Code:    httpErr.Code,
