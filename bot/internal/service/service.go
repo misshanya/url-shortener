@@ -23,6 +23,6 @@ func (s *Service) ShortenURL(ctx context.Context, url string) (string, error) {
 		return "", err
 	}
 
-	short := s.publicHost + resp.Url
+	short := s.publicHost + resp.Code
 	return short, nil
 }
