@@ -24,11 +24,12 @@ type Service struct {
 
 	shortenedCh   chan models.ClickHouseEventShortened
 	unshortenedCh chan models.ClickHouseEventUnshortened
+	DBBatchSize   int
 
 	t trace.Tracer
 }
 
-func New(l *slog.Logger, m *metrics.Metrics, r clickHouseRepo, t trace.Tracer) *Service {
+func New(l *slog.Logger, m *metrics.Metrics, r clickHouseRepo, t trace.Tracer, DBBatchSize int) *Service {
 	return &Service{
 		l: l,
 		m: m,
@@ -36,6 +37,7 @@ func New(l *slog.Logger, m *metrics.Metrics, r clickHouseRepo, t trace.Tracer) *
 
 		shortenedCh:   make(chan models.ClickHouseEventShortened, 10),
 		unshortenedCh: make(chan models.ClickHouseEventUnshortened, 10),
+		DBBatchSize:   DBBatchSize,
 
 		t: t,
 	}
@@ -120,8 +122,8 @@ func (s *Service) ShortenedBatchWriter(ctx context.Context) {
 			shortenedEvents = append(shortenedEvents, event)
 			spanEvent.End()
 
-			if len(shortenedEvents) >= 100 {
-				s.l.Info("Writing shortened event, len > 100")
+			if len(shortenedEvents) >= s.DBBatchSize {
+				s.l.Info("Writing shortened event, len > batch size", "batch_size", s.DBBatchSize)
 				ctxWrite, spanWrite := s.t.Start(ctx, "Write shortened events to the database, len > 100")
 				err := s.r.WriteShortened(ctxWrite, shortenedEvents)
 				spanWrite.End()
@@ -162,8 +164,8 @@ func (s *Service) UnshortenedBatchWriter(ctx context.Context) {
 			unshortenedEvents = append(unshortenedEvents, event)
 			spanEvent.End()
 
-			if len(unshortenedEvents) >= 100 {
-				s.l.Info("Writing unshortened event, len > 100")
+			if len(unshortenedEvents) >= s.DBBatchSize {
+				s.l.Info("Writing unshortened event, len > batch size", "batch_size", s.DBBatchSize)
 				ctxWrite, spanWrite := s.t.Start(ctx, "Write shortened events to the database, len > 100")
 				err := s.r.WriteUnshortened(ctxWrite, unshortenedEvents)
 				spanWrite.End()

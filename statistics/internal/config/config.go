@@ -23,9 +23,10 @@ type httpServer struct {
 }
 
 type clickHouse struct {
-	Addr     string `env:"CLICKHOUSE_ADDR" env-required:"true"`
-	User     string `env:"CLICKHOUSE_USER" env-required:"true"`
-	Password string `env:"CLICKHOUSE_PASSWORD" env-required:"true"`
+	Addr      string `env:"CLICKHOUSE_ADDR" env-required:"true"`
+	User      string `env:"CLICKHOUSE_USER" env-required:"true"`
+	Password  string `env:"CLICKHOUSE_PASSWORD" env-required:"true"`
+	BatchSize int    `env:"CLICKHOUSE_BATCH_SIZE" env-required:"true"`
 }
 
 type tracing struct {

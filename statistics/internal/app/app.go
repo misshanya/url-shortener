@@ -145,7 +145,7 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 	// Create a repository
 	repo := repository.NewClickHouseRepo(a.chConn)
 
-	a.svc = service.New(a.l, m, repo, tracer)
+	a.svc = service.New(a.l, m, repo, tracer, cfg.ClickHouse.BatchSize)
 	a.consumer = consumer.New(a.l, a.kafkaReader, a.svc, tracer)
 	a.producer = producer.New(a.l, a.svc, a.kafkaWriter, cfg.TopTTL, cfg.TopAmount, tracer)
 
