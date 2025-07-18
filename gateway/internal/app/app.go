@@ -62,7 +62,7 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 		),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to init gRPC connection to the shortener service: %w", err)
 	}
 	a.grpcConn = grpcConn
 
@@ -137,17 +137,17 @@ func (a *App) Stop(ctx context.Context) error {
 
 	a.l.Info("Stopping http server...")
 	if err := a.e.Shutdown(ctx); err != nil {
-		stopErr = errors.Join(stopErr, err)
+		stopErr = errors.Join(stopErr, fmt.Errorf("failed to stop http server: %w", err))
 	}
 
 	a.l.Info("Closing gRPC connection...")
 	if err := a.grpcConn.Close(); err != nil {
-		stopErr = errors.Join(stopErr, err)
+		stopErr = errors.Join(stopErr, fmt.Errorf("failed to close gRPC connection: %w", err))
 	}
 
 	a.l.Info("Shutting down tracer provider...")
 	if err := a.tracerProvider.Shutdown(ctx); err != nil {
-		stopErr = errors.Join(stopErr, err)
+		stopErr = errors.Join(stopErr, fmt.Errorf("failed to shutdown tracer provider: %w", err))
 	}
 
 	if stopErr != nil {
