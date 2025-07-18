@@ -95,19 +95,19 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 
 	// Migrate ClickHouse
 	if err := db.Migrate(chOptions); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to migrate ClickHouse: %w", err)
 	}
 
 	// Create a ClickHouse connection
 	chConn, err := clickhouse.Open(&chOptions)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to connect to ClickHouse: %w", err)
 	}
 	a.chConn = chConn
 
 	// Test connection with ClickHouse
 	if err := a.chConn.Ping(context.Background()); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to ping ClickHouse: %w", err)
 	}
 
 	// Init metrics
@@ -170,29 +170,29 @@ func (a *App) Stop(ctx context.Context) error {
 
 	// Close Kafka reader connection
 	if err := a.kafkaReader.Close(); err != nil {
-		stopErr = errors.Join(stopErr, err)
+		stopErr = errors.Join(stopErr, fmt.Errorf("failed to close Kafka reader connection: %w", err))
 	}
 
 	// Close Kafka writer connection
 	if err := a.kafkaWriter.Close(); err != nil {
-		stopErr = errors.Join(stopErr, err)
+		stopErr = errors.Join(stopErr, fmt.Errorf("failed to close Kafka writer connection: %w", err))
 	}
 
 	// Close ClickHouse connection
 	if err := a.chConn.Close(); err != nil {
-		stopErr = errors.Join(stopErr, err)
+		stopErr = errors.Join(stopErr, fmt.Errorf("failed to close ClickHouse connection: %w", err))
 	}
 
 	// Stop metrics server
 	a.l.Info("Stopping http server...")
 	if err := a.e.Shutdown(ctx); err != nil {
-		stopErr = errors.Join(stopErr, err)
+		stopErr = errors.Join(stopErr, fmt.Errorf("failed to shutdown http server: %w", err))
 	}
 
 	// Shut down tracer provider
 	a.l.Info("Shutting down tracer provider...")
 	if err := a.tracerProvider.Shutdown(ctx); err != nil {
-		stopErr = errors.Join(stopErr, err)
+		stopErr = errors.Join(stopErr, fmt.Errorf("failed to shutdown tracer provider: %w", err))
 	}
 
 	if stopErr != nil {
