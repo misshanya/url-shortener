@@ -70,14 +70,14 @@ func New(ctx context.Context, cfg *config.Config, l *slog.Logger) (*App, error) 
 	// Add a listener address
 	lis, err := net.Listen("tcp", cfg.Server.Addr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to listen: %w", err)
 	}
 	a.lis = &lis
 
 	// Init db connection
 	a.dbPool, err = initDB(ctx, cfg.Postgres.URL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to init db connection: %w", err)
 	}
 
 	// Init Valkey connection
@@ -86,13 +86,13 @@ func New(ctx context.Context, cfg *config.Config, l *slog.Logger) (*App, error) 
 		Password:    cfg.Valkey.Password,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to init Valkey connection: %w", err)
 	}
 	a.valkeyClient = client
 
 	// Migrate db
 	if err := db.Migrate(sql.OpenDB(stdlib.GetConnector(*a.dbPool.Config().ConnConfig))); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
 	// Init SQL queries
@@ -173,13 +173,13 @@ func (a *App) Stop(ctx context.Context) error {
 
 	// Close Kafka connection
 	if err := a.kafkaWriter.Close(); err != nil {
-		stopErr = errors.Join(stopErr, err)
+		stopErr = errors.Join(stopErr, fmt.Errorf("failed to close Kafka connection: %w", err))
 	}
 
 	// Shut down tracer provider
 	a.l.Info("Shutting down tracer provider...")
 	if err := a.tracerProvider.Shutdown(ctx); err != nil {
-		stopErr = errors.Join(stopErr, err)
+		stopErr = errors.Join(stopErr, fmt.Errorf("failed to shutdown tracer provider: %w", err))
 	}
 
 	if stopErr != nil {
