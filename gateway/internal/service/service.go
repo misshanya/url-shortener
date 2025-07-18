@@ -28,6 +28,8 @@ func mapGRPCError(err error) *models.HTTPError {
 	}
 
 	switch s.Code() {
+	case codes.OK:
+		return nil
 	case codes.Internal:
 		return &models.HTTPError{
 			Code:    http.StatusInternalServerError,
@@ -43,9 +45,12 @@ func mapGRPCError(err error) *models.HTTPError {
 			Code:    http.StatusBadRequest,
 			Message: s.Message(),
 		}
+	default:
+		return &models.HTTPError{
+			Code:    http.StatusInternalServerError,
+			Message: "Internal Server Error",
+		}
 	}
-
-	return nil
 }
 
 func (s *Service) ShortenURL(ctx context.Context, url string) (string, *models.HTTPError) {
