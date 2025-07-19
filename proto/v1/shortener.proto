@@ -15,6 +15,7 @@ message ShortenURLRequest {
 
 message ShortenURLResponse {
   string code = 1;
+  string original_url = 2;
 }
 
 message GetURLRequest {

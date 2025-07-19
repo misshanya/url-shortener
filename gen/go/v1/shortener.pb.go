@@ -68,6 +68,7 @@ func (x *ShortenURLRequest) GetUrl() string {
 type ShortenURLResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+	OriginalUrl   string                 `protobuf:"bytes,2,opt,name=original_url,json=originalUrl,proto3" json:"original_url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -105,6 +106,13 @@ func (*ShortenURLResponse) Descriptor() ([]byte, []int) {
 func (x *ShortenURLResponse) GetCode() string {
 	if x != nil {
 		return x.Code
+	}
+	return ""
+}
+
+func (x *ShortenURLResponse) GetOriginalUrl() string {
+	if x != nil {
+		return x.OriginalUrl
 	}
 	return ""
 }
@@ -203,9 +211,10 @@ const file_v1_shortener_proto_rawDesc = "" +
 	"\n" +
 	"\x12v1/shortener.proto\x12\x02v1\"%\n" +
 	"\x11ShortenURLRequest\x12\x10\n" +
-	"\x03url\x18\x01 \x01(\tR\x03url\"(\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\"K\n" +
 	"\x12ShortenURLResponse\x12\x12\n" +
-	"\x04code\x18\x01 \x01(\tR\x04code\"#\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code\x12!\n" +
+	"\foriginal_url\x18\x02 \x01(\tR\voriginalUrl\"#\n" +
 	"\rGetURLRequest\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\"\"\n" +
 	"\x0eGetURLResponse\x12\x10\n" +
