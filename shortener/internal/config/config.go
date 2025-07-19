@@ -10,6 +10,8 @@ type Config struct {
 	Kafka    kafka
 	Valkey   valkey
 	Tracing  tracing
+
+	MaxBatchWorkers int `env:"MAX_BATCH_WORKERS" env-default:"100"`
 }
 
 type server struct {

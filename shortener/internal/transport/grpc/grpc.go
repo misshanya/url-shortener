@@ -12,6 +12,7 @@ import (
 
 type service interface {
 	ShortenURL(ctx context.Context, short *models.Short) error
+	ShortenURLBatch(ctx context.Context, shorts []*models.Short)
 	GetURL(ctx context.Context, short string) (string, error)
 }
 
@@ -38,6 +39,37 @@ func (h *Handler) ShortenURL(ctx context.Context, req *pb.ShortenURLRequest) (*p
 	}
 
 	return &pb.ShortenURLResponse{Code: short.Short, OriginalUrl: short.URL}, nil
+}
+
+func (h *Handler) ShortenURLBatch(ctx context.Context, req *pb.ShortenURLBatchRequest) (*pb.ShortenURLBatchResponse, error) {
+	shorts := make([]*models.Short, len(req.Urls))
+
+	// Validate and map URLs into models
+	for i, reqUrl := range req.Urls {
+		short := models.Short{URL: reqUrl.Url}
+		shorts[i] = &short
+
+		if _, err := url.ParseRequestURI(reqUrl.Url); err != nil {
+			short.Error = err
+		}
+	}
+
+	h.service.ShortenURLBatch(ctx, shorts)
+
+	// Prepare response struct with URLs slice
+	response := pb.ShortenURLBatchResponse{Urls: make([]*pb.ShortenURLResponse, len(req.Urls))}
+	for i, short := range shorts {
+		resp := pb.ShortenURLResponse{OriginalUrl: short.URL}
+		response.Urls[i] = &resp
+
+		if short.Error != nil {
+			resp.Error = short.Error.Error()
+			continue
+		}
+		resp.Code = short.Short
+	}
+
+	return &response, nil
 }
 
 func (h *Handler) GetURL(ctx context.Context, req *pb.GetURLRequest) (*pb.GetURLResponse, error) {

@@ -25,6 +25,7 @@ services:
       VALKEY_ADDR: "shortener_cache:6379"
       VALKEY_PASSWORD: "${SHORTENER_CACHE_PASSWORD}"
       TRACING_COLLECTOR_ADDR: "shortener_jaeger:4317"
+      MAX_BATCH_WORKERS: "${SHORTENER_MAX_BATCH_WORKERS}"
     networks:
       - db
       - shortener

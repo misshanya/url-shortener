@@ -5,6 +5,7 @@ import "time"
 type Short struct {
 	URL   string
 	Short string
+	Error error
 }
 
 type UnshortenedTop struct {

@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log/slog"
+	"sync"
 	"time"
 )
 
@@ -33,15 +34,19 @@ type Service struct {
 	l  *slog.Logger
 	kw *kafka.Writer
 	t  trace.Tracer
+
+	maxWorkers int
 }
 
-func New(repo postgresRepo, vr valkeyRepo, logger *slog.Logger, kafkaWriter *kafka.Writer, t trace.Tracer) *Service {
+func New(repo postgresRepo, vr valkeyRepo, logger *slog.Logger, kafkaWriter *kafka.Writer, t trace.Tracer, maxWorkers int) *Service {
 	return &Service{
 		pr: repo,
 		vr: vr,
 		l:  logger,
 		kw: kafkaWriter,
 		t:  t,
+
+		maxWorkers: maxWorkers,
 	}
 }
 
@@ -117,6 +122,41 @@ func (s *Service) ShortenURL(ctx context.Context, short *models.Short) error {
 	}()
 
 	return nil
+}
+
+func (s *Service) ShortenURLBatch(ctx context.Context, shorts []*models.Short) {
+	ctx, span := s.t.Start(ctx, "ShortenURLBatch")
+	defer span.End()
+
+	// Define the amount of workers
+	numOfWorkers := s.maxWorkers
+	if numOfWorkers > len(shorts) {
+		numOfWorkers = len(shorts)
+	}
+
+	// Create workers
+	jobs := make(chan *models.Short, len(shorts))
+	wg := sync.WaitGroup{}
+	wg.Add(numOfWorkers)
+	for range numOfWorkers {
+		go func() {
+			defer wg.Done()
+			for job := range jobs {
+				err := s.ShortenURL(ctx, job)
+				if err != nil {
+					job.Error = err
+				}
+			}
+		}()
+	}
+
+	// Send shorts to the jobs channel
+	for _, short := range shorts {
+		jobs <- short
+	}
+	close(jobs)
+
+	wg.Wait()
 }
 
 func (s *Service) GetURL(ctx context.Context, short string) (string, error) {

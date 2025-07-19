@@ -137,7 +137,7 @@ func New(ctx context.Context, cfg *config.Config, l *slog.Logger) (*App, error) 
 
 	repo := repository.NewPostgresRepo(queries)
 	valkeyRepo := repository.NewValkeyRepo(a.valkeyClient)
-	svc := service.New(repo, valkeyRepo, a.l, a.kafkaWriter, tracer)
+	svc := service.New(repo, valkeyRepo, a.l, a.kafkaWriter, tracer, cfg.MaxBatchWorkers)
 
 	a.consumer = consumer.New(a.l, a.kafkaReader, svc)
 
