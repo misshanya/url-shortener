@@ -37,7 +37,7 @@ func (h *Handler) ShortenURL(ctx context.Context, req *pb.ShortenURLRequest) (*p
 		return nil, err
 	}
 
-	return &pb.ShortenURLResponse{Code: short.Short}, nil
+	return &pb.ShortenURLResponse{Code: short.Short, OriginalUrl: short.URL}, nil
 }
 
 func (h *Handler) GetURL(ctx context.Context, req *pb.GetURLRequest) (*pb.GetURLResponse, error) {
