@@ -34,8 +34,8 @@ github.com/mattn/go-colorable v0.1.14 h1:9A9LHSqF/7dyVVX6g0U9cwm9pG3kP9gSzcuIPHP
 github.com/mattn/go-colorable v0.1.14/go.mod h1:6LmQG8QLFO4G5z1gPvYEzlUgJ2wF+stgPZH1UqBm1s8=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
-github.com/misshanya/url-shortener v0.0.0-20250719180531-0f195f3895c6 h1:4E8xHNmeMloUDyCeFCkw2CMNIwpG2ZIDlIQzCCHpo/A=
-github.com/misshanya/url-shortener v0.0.0-20250719180531-0f195f3895c6/go.mod h1:RhwOnAmV8rCJt3V7xHOWpV7xYV+C89+maojf47djtRE=
+github.com/misshanya/url-shortener v0.0.0-20250719210321-46a07129cf04 h1:q87GXPLQ3zKwM3eCBa2sitag45T2vQ/RVpV/Qlse0o8=
+github.com/misshanya/url-shortener v0.0.0-20250719210321-46a07129cf04/go.mod h1:RhwOnAmV8rCJt3V7xHOWpV7xYV+C89+maojf47djtRE=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rogpeppe/go-internal v1.13.1 h1:KvO1DLK/DRN07sQ1LQKScxyZJuNnedQ5/wKSR38lUII=

@@ -117,6 +117,7 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 	a.e.Use(middleware.Recover())
 
 	// Connect handlers to the routes
+	a.e.POST("/shorten/batch", shortenerHandler.ShortenURLBatch)
 	a.e.POST("/shorten", shortenerHandler.ShortenURL)
 	a.e.GET("/:code", shortenerHandler.UnshortenURL)
 

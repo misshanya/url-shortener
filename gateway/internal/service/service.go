@@ -66,6 +66,37 @@ func (s *Service) ShortenURL(ctx context.Context, url string) (string, *models.H
 	return short, nil
 }
 
+func (s *Service) ShortenURLBatch(ctx context.Context, urls []*models.Short) *models.HTTPError {
+	urlsForReq := make([]*pb.ShortenURLRequest, len(urls))
+	for i, url := range urls {
+		urlsForReq[i] = &pb.ShortenURLRequest{Url: url.OriginalURL}
+	}
+	resp, err := s.client.ShortenURLBatch(ctx, &pb.ShortenURLBatchRequest{Urls: urlsForReq})
+	if httpErr := mapGRPCError(err); httpErr != nil {
+		return &models.HTTPError{
+			Code:    httpErr.Code,
+			Message: httpErr.Message,
+		}
+	}
+
+	if len(resp.Urls) != len(urls) {
+		return &models.HTTPError{
+			Code:    http.StatusInternalServerError,
+			Message: "Internal Server Error",
+		}
+	}
+
+	for i, url := range resp.Urls {
+		if url.Error != "" {
+			urls[i].Error = url.Error
+			continue
+		}
+		urls[i].ShortURL = s.publicHost + url.Code
+	}
+
+	return nil
+}
+
 func (s *Service) UnshortenURL(ctx context.Context, code string) (string, *models.HTTPError) {
 	resp, err := s.client.GetURL(ctx, &pb.GetURLRequest{Code: code})
 	if httpErr := mapGRPCError(err); httpErr != nil {
