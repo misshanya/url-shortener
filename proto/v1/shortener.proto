@@ -6,6 +6,7 @@ option go_package = "github.com/misshanya/url-shortener/gen/go/v1";
 
 service URLShortenerService {
   rpc ShortenURL(ShortenURLRequest) returns (ShortenURLResponse);
+  rpc ShortenURLBatch(ShortenURLBatchRequest) returns (ShortenURLBatchResponse);
   rpc GetURL(GetURLRequest) returns (GetURLResponse);
 }
 
@@ -16,6 +17,15 @@ message ShortenURLRequest {
 message ShortenURLResponse {
   string code = 1;
   string original_url = 2;
+  string error = 3;
+}
+
+message ShortenURLBatchRequest {
+  repeated ShortenURLRequest urls = 1;
+}
+
+message ShortenURLBatchResponse {
+  repeated ShortenURLResponse urls = 1;
 }
 
 message GetURLRequest {
