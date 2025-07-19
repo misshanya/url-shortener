@@ -34,7 +34,7 @@ func (h *Handler) ShortenURL(c echo.Context) error {
 		return echo.NewHTTPError(httpErr.Code, httpErr.Message)
 	}
 
-	resp := &dto.ShortenURLResponse{URL: url}
+	resp := &dto.ShortenURLResponse{ShortURL: url, OriginalURL: req.URL}
 	return c.JSON(http.StatusCreated, resp)
 }
 
