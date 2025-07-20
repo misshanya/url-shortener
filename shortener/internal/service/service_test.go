@@ -119,3 +119,114 @@ func Test_ShortenURL(t *testing.T) {
 		})
 	}
 }
+
+func Test_GetURL(t *testing.T) {
+	tests := []struct {
+		Name         string
+		ShortCode    string
+		ExceptedURL  string
+		WantErr      bool
+		SetUpMocks   func(db *mockpostgresRepo, valkey *mockvalkeyRepo, kafkaWriter *mockkafkaWriter, wg *sync.WaitGroup)
+		WaitForKafka bool
+	}{
+		{
+			Name:        "Existing URL",
+			ShortCode:   "3a",
+			ExceptedURL: "https://google.com",
+			WantErr:     false,
+			SetUpMocks: func(db *mockpostgresRepo, valkey *mockvalkeyRepo, kafkaWriter *mockkafkaWriter, wg *sync.WaitGroup) {
+				valkey.On("GetURLByCode", mock.Anything, "3a").
+					Return("", nil).Once()
+				db.On("GetURL", mock.Anything, int64(222)).
+					Return("https://google.com", nil).Once()
+				kafkaWriter.On("WriteMessages", mock.Anything, mock.Anything).
+					Return(nil).Once().Run(func(args mock.Arguments) { wg.Done() })
+			},
+			WaitForKafka: true,
+		},
+		{
+			Name:        "Existing URL in cache",
+			ShortCode:   "3a",
+			ExceptedURL: "https://google.com",
+			WantErr:     false,
+			SetUpMocks: func(db *mockpostgresRepo, valkey *mockvalkeyRepo, kafkaWriter *mockkafkaWriter, wg *sync.WaitGroup) {
+				valkey.On("GetURLByCode", mock.Anything, "3a").
+					Return("https://google.com", nil).Once()
+				kafkaWriter.On("WriteMessages", mock.Anything, mock.Anything).
+					Return(nil).Once().Run(func(args mock.Arguments) { wg.Done() })
+			},
+			WaitForKafka: true,
+		},
+		{
+			Name:      "Non-existing URL",
+			ShortCode: "3a",
+			WantErr:   true,
+			SetUpMocks: func(db *mockpostgresRepo, valkey *mockvalkeyRepo, kafkaWriter *mockkafkaWriter, wg *sync.WaitGroup) {
+				valkey.On("GetURLByCode", mock.Anything, "3a").
+					Return("", nil).Once()
+				db.On("GetURL", mock.Anything, int64(222)).
+					Return("", sql.ErrNoRows).Once()
+			},
+		},
+		{
+			Name:      "Failed to get from DB",
+			ShortCode: "3a",
+			WantErr:   true,
+			SetUpMocks: func(db *mockpostgresRepo, valkey *mockvalkeyRepo, kafkaWriter *mockkafkaWriter, wg *sync.WaitGroup) {
+				valkey.On("GetURLByCode", mock.Anything, "3a").
+					Return("", nil).Once()
+				db.On("GetURL", mock.Anything, int64(222)).
+					Return("", errors.New("some unknown error")).Once()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			mockPostgres := mockpostgresRepo{}
+			mockKafka := mockkafkaWriter{}
+			mockValkey := mockvalkeyRepo{}
+
+			var wg sync.WaitGroup
+
+			if tt.WaitForKafka {
+				wg.Add(1)
+			}
+
+			tt.SetUpMocks(&mockPostgres, &mockValkey, &mockKafka, &wg)
+
+			tracerProvider := noop.NewTracerProvider()
+			tracer := tracerProvider.Tracer("")
+
+			service := New(
+				&mockPostgres,
+				&mockValkey,
+				slog.New(
+					slog.NewTextHandler(
+						os.Stdout,
+						&slog.HandlerOptions{},
+					),
+				),
+				&mockKafka,
+				tracer,
+				10,
+			)
+
+			url, err := service.GetURL(context.Background(), tt.ShortCode)
+			if tt.WantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.ExceptedURL, url)
+			}
+
+			if tt.WaitForKafka {
+				wg.Wait()
+			}
+
+			mockPostgres.AssertExpectations(t)
+			mockValkey.AssertExpectations(t)
+			mockKafka.AssertExpectations(t)
+		})
+	}
+}
