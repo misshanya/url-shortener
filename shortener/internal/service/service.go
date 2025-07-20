@@ -28,17 +28,21 @@ type valkeyRepo interface {
 	GetURLByCode(ctx context.Context, code string) (string, error)
 }
 
+type kafkaWriter interface {
+	WriteMessages(ctx context.Context, msgs ...kafka.Message) error
+}
+
 type Service struct {
 	pr postgresRepo
 	vr valkeyRepo
 	l  *slog.Logger
-	kw *kafka.Writer
+	kw kafkaWriter
 	t  trace.Tracer
 
 	maxWorkers int
 }
 
-func New(repo postgresRepo, vr valkeyRepo, logger *slog.Logger, kafkaWriter *kafka.Writer, t trace.Tracer, maxWorkers int) *Service {
+func New(repo postgresRepo, vr valkeyRepo, logger *slog.Logger, kafkaWriter kafkaWriter, t trace.Tracer, maxWorkers int) *Service {
 	return &Service{
 		pr: repo,
 		vr: vr,
