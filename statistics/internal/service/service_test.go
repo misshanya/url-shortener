@@ -202,7 +202,7 @@ func TestService_ShortenedBatchWriter(t *testing.T) {
 			tracerProvider := noop.NewTracerProvider()
 			tracer := tracerProvider.Tracer("")
 
-			shortenedCh := make(chan models.ClickHouseEventShortened, tt.AmountOfShortenedEvents)
+			shortenedCh := make(chan models.ClickHouseEventShortened)
 			unshortenedCh := make(chan models.ClickHouseEventUnshortened)
 
 			ticks := make(chan time.Time)
@@ -299,7 +299,7 @@ func TestService_UnshortenedBatchWriter(t *testing.T) {
 			tracer := tracerProvider.Tracer("")
 
 			shortenedCh := make(chan models.ClickHouseEventShortened)
-			unshortenedCh := make(chan models.ClickHouseEventUnshortened, tt.AmountOfUnshortenedEvents)
+			unshortenedCh := make(chan models.ClickHouseEventUnshortened)
 
 			ticks := make(chan time.Time)
 
