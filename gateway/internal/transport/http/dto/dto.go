@@ -5,7 +5,7 @@ type ShortenURLRequest struct {
 }
 
 type ShortenURLResponse struct {
-	ShortURL    string `json:"short_url"`
+	ShortURL    string `json:"short_url,omitempty"`
 	OriginalURL string `json:"original_url"`
 	Error       string `json:"error,omitempty"`
 }
