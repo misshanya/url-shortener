@@ -12,6 +12,7 @@ import (
 	"github.com/misshanya/url-shortener/statistics/internal/consumer"
 	"github.com/misshanya/url-shortener/statistics/internal/db"
 	"github.com/misshanya/url-shortener/statistics/internal/metrics"
+	"github.com/misshanya/url-shortener/statistics/internal/models"
 	"github.com/misshanya/url-shortener/statistics/internal/producer"
 	"github.com/misshanya/url-shortener/statistics/internal/repository"
 	"github.com/misshanya/url-shortener/statistics/internal/service"
@@ -145,7 +146,15 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 	// Create a repository
 	repo := repository.NewClickHouseRepo(a.chConn)
 
-	a.svc = service.New(a.l, m, repo, tracer, cfg.ClickHouse.BatchSize)
+	a.svc = service.New(
+		a.l,
+		make(chan models.ClickHouseEventShortened, 10),
+		make(chan models.ClickHouseEventUnshortened, 10),
+		m,
+		repo,
+		tracer,
+		cfg.ClickHouse.BatchSize,
+	)
 	a.consumer = consumer.New(a.l, a.kafkaReader, a.svc, tracer)
 	a.producer = producer.New(a.l, a.svc, a.kafkaWriter, cfg.TopTTL, cfg.TopAmount, tracer)
 

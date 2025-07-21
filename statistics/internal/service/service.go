@@ -33,14 +33,22 @@ type Service struct {
 	t trace.Tracer
 }
 
-func New(l *slog.Logger, m metricsProvider, r clickHouseRepo, t trace.Tracer, DBBatchSize int) *Service {
+func New(
+	l *slog.Logger,
+	shortenedCh chan models.ClickHouseEventShortened,
+	unshortenedCh chan models.ClickHouseEventUnshortened,
+	m metricsProvider,
+	r clickHouseRepo,
+	t trace.Tracer,
+	DBBatchSize int,
+) *Service {
 	return &Service{
 		l: l,
 		m: m,
 		r: r,
 
-		shortenedCh:   make(chan models.ClickHouseEventShortened, 10),
-		unshortenedCh: make(chan models.ClickHouseEventUnshortened, 10),
+		shortenedCh:   shortenedCh,
+		unshortenedCh: unshortenedCh,
 		DBBatchSize:   DBBatchSize,
 
 		t: t,
