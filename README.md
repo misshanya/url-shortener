@@ -15,6 +15,8 @@ My first practice with gRPC & microservices in event-driven system with distribu
 
 To shorten URL, this service stores original URL in PostgreSQL and encodes ID into base62.
 
+To batch shorten URLs, service runs workers for fast shortening.
+
 To unshorten URL, it tries to get original URL by code from cache (Valkey). If not in cache, it decodes base62 and queries the PostgreSQL.
 
 It is a Kafka producer for topics `shortener.shortened` and `shortener.unshortened`.
@@ -104,6 +106,18 @@ docker compose up -d
    "url": "your-url-to-shorten"
  }
  ```
+
+**Batch shorten** - `POST /shorten/batch` with the following body:
+
+```json
+{
+  "urls": [
+    { "url": "your-url-to-shorten_1" },
+    { "url": "your-url-to-shorten_2" },
+    { "url": "your-url-to-shorten_X" }
+  ]
+}
+```
 
 **Unshorten** - `GET /{base62}`
 
