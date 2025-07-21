@@ -119,10 +119,8 @@ func (s *Service) Unshortened(ctx context.Context, msg *models.KafkaMessageUnsho
 	spanClickHouse.End()
 }
 
-func (s *Service) ShortenedBatchWriter(ctx context.Context) {
+func (s *Service) ShortenedBatchWriter(ctx context.Context, tick <-chan time.Time) {
 	var shortenedEvents []models.ClickHouseEventShortened
-
-	ticker := time.NewTicker(10 * time.Second)
 
 	for {
 		select {
@@ -144,7 +142,7 @@ func (s *Service) ShortenedBatchWriter(ctx context.Context) {
 				}
 				shortenedEvents = nil
 			}
-		case <-ticker.C:
+		case <-tick:
 			if len(shortenedEvents) > 0 {
 				s.l.Info("Writing shortened event, ticker")
 				ctxWrite, spanWrite := s.t.Start(ctx, "Write shortened events to the database, ticker")
@@ -161,10 +159,8 @@ func (s *Service) ShortenedBatchWriter(ctx context.Context) {
 	}
 }
 
-func (s *Service) UnshortenedBatchWriter(ctx context.Context) {
+func (s *Service) UnshortenedBatchWriter(ctx context.Context, tick <-chan time.Time) {
 	var unshortenedEvents []models.ClickHouseEventUnshortened
-
-	ticker := time.NewTicker(10 * time.Second)
 
 	for {
 		select {
@@ -186,7 +182,7 @@ func (s *Service) UnshortenedBatchWriter(ctx context.Context) {
 				}
 				unshortenedEvents = nil
 			}
-		case <-ticker.C:
+		case <-tick:
 			if len(unshortenedEvents) > 0 {
 				s.l.Info("Writing unshortened event, ticker")
 				ctxWrite, spanWrite := s.t.Start(ctx, "Write shortened events to the database, ticker")
