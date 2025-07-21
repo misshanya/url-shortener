@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"github.com/google/uuid"
-	"github.com/misshanya/url-shortener/statistics/internal/metrics"
 	"github.com/misshanya/url-shortener/statistics/internal/models"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
@@ -17,9 +16,14 @@ type clickHouseRepo interface {
 	GetTopUnshortened(ctx context.Context, amount, ttl int) (*models.UnshortenedTop, error)
 }
 
+type metricsProvider interface {
+	Shorten()
+	Unshorten()
+}
+
 type Service struct {
 	l *slog.Logger
-	m *metrics.Metrics
+	m metricsProvider
 	r clickHouseRepo
 
 	shortenedCh   chan models.ClickHouseEventShortened
@@ -29,7 +33,7 @@ type Service struct {
 	t trace.Tracer
 }
 
-func New(l *slog.Logger, m *metrics.Metrics, r clickHouseRepo, t trace.Tracer, DBBatchSize int) *Service {
+func New(l *slog.Logger, m metricsProvider, r clickHouseRepo, t trace.Tracer, DBBatchSize int) *Service {
 	return &Service{
 		l: l,
 		m: m,
