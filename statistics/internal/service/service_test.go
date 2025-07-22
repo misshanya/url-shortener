@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"github.com/misshanya/url-shortener/statistics/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -347,6 +348,99 @@ func TestService_UnshortenedBatchWriter(t *testing.T) {
 
 			// Wait for the repo calls
 			wg.Wait()
+
+			mockClickHouse.AssertExpectations(t)
+		})
+	}
+}
+
+func TestService_GetTopUnshortened(t *testing.T) {
+	type input struct {
+		Amount int
+		TTL    int
+	}
+
+	tests := []struct {
+		Name           string
+		Input          input
+		ExceptedResult *models.UnshortenedTop
+		WantErr        bool
+		SetUpMocks     func(clickhouse *mockclickHouseRepo, i input, r *models.UnshortenedTop)
+	}{
+		{
+			Name: "Successfully Get Top",
+			Input: struct {
+				Amount int
+				TTL    int
+			}{Amount: 10, TTL: 5},
+			ExceptedResult: &models.UnshortenedTop{
+				ValidUntil: time.Now(),
+				Top: []struct {
+					OriginalURL string
+					ShortCode   string
+				}{
+					{
+						OriginalURL: "https://go.dev",
+						ShortCode:   "3a",
+					},
+					{
+						OriginalURL: "https://github.com",
+						ShortCode:   "1",
+					},
+				},
+			},
+			WantErr: false,
+			SetUpMocks: func(clickhouse *mockclickHouseRepo, i input, r *models.UnshortenedTop) {
+				clickhouse.On("GetTopUnshortened", mock.Anything, i.Amount, i.TTL).
+					Return(r, nil).Once()
+			},
+		},
+		{
+			Name: "Failed To Get Top",
+			Input: struct {
+				Amount int
+				TTL    int
+			}{Amount: 10, TTL: 5},
+			ExceptedResult: nil,
+			WantErr:        true,
+			SetUpMocks: func(clickhouse *mockclickHouseRepo, i input, r *models.UnshortenedTop) {
+				clickhouse.On("GetTopUnshortened", mock.Anything, i.Amount, i.TTL).
+					Return(nil, errors.New("some unknown error")).Once()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			mockClickHouse := mockclickHouseRepo{}
+
+			tt.SetUpMocks(&mockClickHouse, tt.Input, tt.ExceptedResult)
+
+			tracerProvider := noop.NewTracerProvider()
+			tracer := tracerProvider.Tracer("")
+
+			service := New(
+				slog.New(
+					slog.NewTextHandler(
+						os.Stdout,
+						&slog.HandlerOptions{}),
+				),
+				nil,
+				nil,
+				nil,
+				&mockClickHouse,
+				tracer,
+				10,
+			)
+
+			result, err := service.GetTopUnshortened(context.Background(), tt.Input.Amount, tt.Input.TTL)
+			if tt.WantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.Equal(t, tt.ExceptedResult, result)
 
 			mockClickHouse.AssertExpectations(t)
 		})
