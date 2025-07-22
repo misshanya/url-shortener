@@ -12,6 +12,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 )
 
 func Test_ShortenURL(t *testing.T) {
@@ -227,6 +228,75 @@ func Test_GetURL(t *testing.T) {
 			mockPostgres.AssertExpectations(t)
 			mockValkey.AssertExpectations(t)
 			mockKafka.AssertExpectations(t)
+		})
+	}
+}
+
+func Test_SetTop(t *testing.T) {
+	tests := []struct {
+		Name         string
+		InputMessage *models.KafkaMessageUnshortenedTop
+		SetUpMocks   func(valkey *mockvalkeyRepo, exceptedTop models.UnshortenedTop)
+	}{
+		{
+			Name: "Successfully cached top",
+			InputMessage: &models.KafkaMessageUnshortenedTop{
+				ValidUntil: time.Now().Add(time.Hour),
+				Top: []struct {
+					OriginalURL string `json:"original_url"`
+					ShortCode   string `json:"short_code"`
+				}{
+					{
+						OriginalURL: "https://go.dev",
+						ShortCode:   "3a",
+					},
+					{
+						OriginalURL: "https://github.com",
+						ShortCode:   "1",
+					},
+				},
+			},
+			SetUpMocks: func(valkey *mockvalkeyRepo, exceptedTop models.UnshortenedTop) {
+				valkey.On("SetTop", mock.Anything, exceptedTop, mock.Anything).
+					Return(nil).Once()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			mockValkey := mockvalkeyRepo{}
+
+			exceptedTop := models.UnshortenedTop{
+				ValidUntil: tt.InputMessage.ValidUntil,
+				Top: []struct {
+					OriginalURL string
+					ShortCode   string
+				}(tt.InputMessage.Top),
+			}
+
+			tt.SetUpMocks(&mockValkey, exceptedTop)
+
+			tracerProvider := noop.NewTracerProvider()
+			tracer := tracerProvider.Tracer("")
+
+			service := New(
+				nil,
+				&mockValkey,
+				slog.New(
+					slog.NewTextHandler(
+						os.Stdout,
+						&slog.HandlerOptions{},
+					),
+				),
+				nil,
+				tracer,
+				10,
+			)
+
+			service.SetTop(context.Background(), tt.InputMessage)
+
+			mockValkey.AssertExpectations(t)
 		})
 	}
 }
