@@ -135,3 +135,58 @@ func Test_ShortenURL(t *testing.T) {
 		})
 	}
 }
+
+func Test_UnshortenURL(t *testing.T) {
+	tests := []struct {
+		Name           string
+		InputCode      string
+		ExceptedResult string
+		ExceptedErr    *models.HTTPError
+		SetUpMocks     func(client *mockgrpcClient)
+	}{
+		{
+			Name:           "Successfully Unshortened",
+			InputCode:      "3a",
+			ExceptedResult: "https://go.dev",
+			ExceptedErr:    nil,
+			SetUpMocks: func(client *mockgrpcClient) {
+				client.On("GetURL", mock.Anything, &pb.GetURLRequest{Code: "3a"}).
+					Return(&pb.GetURLResponse{Url: "https://go.dev"}, nil).Once()
+			},
+		}, {
+			Name:           "gRPC server answered with internal error",
+			InputCode:      "3a",
+			ExceptedResult: "",
+			ExceptedErr: &models.HTTPError{
+				Code:    http.StatusInternalServerError,
+				Message: "Internal Server Error",
+			},
+			SetUpMocks: func(client *mockgrpcClient) {
+				client.On("GetURL", mock.Anything, &pb.GetURLRequest{Code: "3a"}).
+					Return(
+						nil,
+						status.New(
+							codes.Internal,
+							"Internal Server Error",
+						).Err(),
+					).Once()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			mockClient := mockgrpcClient{}
+
+			tt.SetUpMocks(&mockClient)
+
+			service := NewService(&mockClient, "")
+
+			result, err := service.UnshortenURL(context.Background(), tt.InputCode)
+			assert.Equal(t, tt.ExceptedErr, err)
+			assert.Equal(t, tt.ExceptedResult, result)
+
+			mockClient.AssertExpectations(t)
+		})
+	}
+}
