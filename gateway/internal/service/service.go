@@ -4,17 +4,24 @@ import (
 	"context"
 	"github.com/misshanya/url-shortener/gateway/internal/models"
 	pb "github.com/misshanya/url-shortener/gen/go/v1"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"net/http"
 )
 
+type grpcClient interface {
+	ShortenURL(ctx context.Context, in *pb.ShortenURLRequest, opts ...grpc.CallOption) (*pb.ShortenURLResponse, error)
+	ShortenURLBatch(ctx context.Context, in *pb.ShortenURLBatchRequest, opts ...grpc.CallOption) (*pb.ShortenURLBatchResponse, error)
+	GetURL(ctx context.Context, in *pb.GetURLRequest, opts ...grpc.CallOption) (*pb.GetURLResponse, error)
+}
+
 type Service struct {
-	client     pb.URLShortenerServiceClient
+	client     grpcClient
 	publicHost string
 }
 
-func NewService(client pb.URLShortenerServiceClient, publicHost string) *Service {
+func NewService(client grpcClient, publicHost string) *Service {
 	return &Service{client: client, publicHost: publicHost}
 }
 
