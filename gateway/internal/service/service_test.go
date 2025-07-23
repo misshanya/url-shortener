@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"github.com/misshanya/url-shortener/gateway/internal/models"
 	pb "github.com/misshanya/url-shortener/gen/go/v1"
 	"github.com/stretchr/testify/assert"
@@ -11,6 +12,67 @@ import (
 	"net/http"
 	"testing"
 )
+
+func Test_mapGRPCError(t *testing.T) {
+	tests := []struct {
+		Name        string
+		InputErr    error
+		ExceptedErr *models.HTTPError
+	}{
+		{
+			Name:        "OK",
+			InputErr:    status.New(codes.OK, "").Err(),
+			ExceptedErr: nil,
+		},
+		{
+			Name:     "Internal",
+			InputErr: status.New(codes.Internal, "Internal").Err(),
+			ExceptedErr: &models.HTTPError{
+				Code:    http.StatusInternalServerError,
+				Message: "Internal",
+			},
+		},
+		{
+			Name:     "Not Found",
+			InputErr: status.New(codes.NotFound, "Not Found").Err(),
+			ExceptedErr: &models.HTTPError{
+				Code:    http.StatusNotFound,
+				Message: "Not Found",
+			},
+		},
+		{
+			Name:     "Invalid Argument",
+			InputErr: status.New(codes.InvalidArgument, "Invalid Argument").Err(),
+			ExceptedErr: &models.HTTPError{
+				Code:    http.StatusBadRequest,
+				Message: "Invalid Argument",
+			},
+		},
+		{
+			Name:     "Non-gRPC error",
+			InputErr: errors.New("some unmappable error"),
+			ExceptedErr: &models.HTTPError{
+				Code:    http.StatusInternalServerError,
+				Message: "Internal Server Error",
+			},
+		},
+		{
+			Name:     "Default case (unknown)",
+			InputErr: status.New(codes.Unknown, "Unknown Error").Err(),
+			ExceptedErr: &models.HTTPError{
+				Code:    http.StatusInternalServerError,
+				Message: "Internal Server Error",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			httpErr := mapGRPCError(tt.InputErr)
+			assert.Equal(t, tt.ExceptedErr, httpErr)
+		})
+	}
+}
 
 func Test_ShortenURL(t *testing.T) {
 	tests := []struct {
