@@ -3,16 +3,21 @@ package service
 import (
 	"context"
 	pb "github.com/misshanya/url-shortener/gen/go/v1"
+	"google.golang.org/grpc"
 	"log/slog"
 )
 
+type grpcClient interface {
+	ShortenURL(ctx context.Context, in *pb.ShortenURLRequest, opts ...grpc.CallOption) (*pb.ShortenURLResponse, error)
+}
+
 type Service struct {
-	client     pb.URLShortenerServiceClient
+	client     grpcClient
 	publicHost string
 	l          *slog.Logger
 }
 
-func New(client pb.URLShortenerServiceClient, publicHost string, logger *slog.Logger) *Service {
+func New(client grpcClient, publicHost string, logger *slog.Logger) *Service {
 	return &Service{client: client, publicHost: publicHost, l: logger}
 }
 
