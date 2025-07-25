@@ -156,7 +156,9 @@ func (s *Service) ShortenURLBatch(ctx context.Context, shorts []*models.Short) {
 
 	// Send shorts to the jobs channel
 	for _, short := range shorts {
-		jobs <- short
+		if short.Error == nil {
+			jobs <- short
+		}
 	}
 	close(jobs)
 
