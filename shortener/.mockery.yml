@@ -14,3 +14,7 @@ packages:
   github.com/misshanya/url-shortener/shortener/internal/service:
     config:
       all: true
+
+  github.com/misshanya/url-shortener/shortener/internal/transport/grpc:
+    config:
+      all: true
