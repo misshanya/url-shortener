@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	pb "github.com/misshanya/url-shortener/gen/go/v1"
 	"github.com/misshanya/url-shortener/shortener/internal/models"
 	"github.com/stretchr/testify/assert"
@@ -128,6 +129,53 @@ func Test_ShortenURLBatch(t *testing.T) {
 			handler := Handler{service: &mockService}
 
 			resp, err := handler.ShortenURLBatch(context.Background(), tt.InputReq)
+			assert.Equal(t, tt.ExceptedErr, err)
+			assert.Equal(t, tt.ExceptedResponse, resp)
+
+			mockService.AssertExpectations(t)
+		})
+	}
+}
+
+func Test_GetURL(t *testing.T) {
+	tests := []struct {
+		Name             string
+		InputReq         *pb.GetURLRequest
+		ExceptedResponse *pb.GetURLResponse
+		ExceptedErr      error
+		SetUpMocks       func(service *mockservice, code string)
+	}{
+		{
+			Name:             "Successfully Got URL",
+			InputReq:         &pb.GetURLRequest{Code: "3a"},
+			ExceptedResponse: &pb.GetURLResponse{Url: "https://go.dev"},
+			ExceptedErr:      nil,
+			SetUpMocks: func(service *mockservice, code string) {
+				service.On("GetURL", mock.Anything, code).
+					Return("https://go.dev", nil).Once()
+			},
+		},
+		{
+			Name:             "Service returned an error",
+			InputReq:         &pb.GetURLRequest{Code: "3a"},
+			ExceptedResponse: nil,
+			ExceptedErr:      errors.New("some error"),
+			SetUpMocks: func(service *mockservice, code string) {
+				service.On("GetURL", mock.Anything, code).
+					Return("", errors.New("some error")).Once()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			mockService := mockservice{}
+
+			tt.SetUpMocks(&mockService, tt.InputReq.Code)
+
+			handler := Handler{service: &mockService}
+
+			resp, err := handler.GetURL(context.Background(), tt.InputReq)
 			assert.Equal(t, tt.ExceptedErr, err)
 			assert.Equal(t, tt.ExceptedResponse, resp)
 
