@@ -69,3 +69,69 @@ func Test_ShortenURL(t *testing.T) {
 		})
 	}
 }
+
+func Test_ShortenURLBatch(t *testing.T) {
+	tests := []struct {
+		Name             string
+		InputReq         *pb.ShortenURLBatchRequest
+		ExceptedResponse *pb.ShortenURLBatchResponse
+		ExceptedErr      error
+		SetUpMocks       func(service *mockservice, shorts []*models.Short)
+	}{
+		{
+			Name: "Successfully Shortened 2 of 3",
+			InputReq: &pb.ShortenURLBatchRequest{
+				Urls: []*pb.ShortenURLRequest{
+					{Url: "https://go.dev"},
+					{Url: "some invalid url"},
+					{Url: "https://gitlab.com"},
+				},
+			},
+			ExceptedResponse: &pb.ShortenURLBatchResponse{
+				Urls: []*pb.ShortenURLResponse{
+					{OriginalUrl: "https://go.dev", Code: "3a"},
+					{OriginalUrl: "some invalid url", Error: "parse \"some invalid url\": invalid URI for request"},
+					{OriginalUrl: "https://gitlab.com", Code: "3b"},
+				},
+			},
+			ExceptedErr: nil,
+			SetUpMocks: func(service *mockservice, shorts []*models.Short) {
+				service.On("ShortenURLBatch", mock.Anything, mock.AnythingOfType("[]*models.Short")).
+					Run(func(args mock.Arguments) {
+						urls := map[string]string{
+							"https://go.dev":     "3a",
+							"https://gitlab.com": "3b",
+						}
+						for _, short := range args.Get(1).([]*models.Short) {
+							if short.Error == nil {
+								short.Short = urls[short.URL]
+							}
+						}
+					}).Once()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			mockService := mockservice{}
+
+			shorts := make([]*models.Short, len(tt.InputReq.Urls))
+
+			for i, reqUrl := range tt.InputReq.Urls {
+				short := models.Short{URL: reqUrl.Url}
+				shorts[i] = &short
+			}
+
+			tt.SetUpMocks(&mockService, shorts)
+
+			handler := Handler{service: &mockService}
+
+			resp, err := handler.ShortenURLBatch(context.Background(), tt.InputReq)
+			assert.Equal(t, tt.ExceptedErr, err)
+			assert.Equal(t, tt.ExceptedResponse, resp)
+
+			mockService.AssertExpectations(t)
+		})
+	}
+}
