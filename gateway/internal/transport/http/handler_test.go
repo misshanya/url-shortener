@@ -1,6 +1,7 @@
 package http
 
 import (
+	"fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/misshanya/url-shortener/gateway/internal/models"
 	"github.com/stretchr/testify/assert"
@@ -200,6 +201,78 @@ func Test_ShortenURLBatch(t *testing.T) {
 
 			assert.Equal(t, tt.ExceptedStatus, rec.Code)
 			assert.JSONEq(t, tt.ExceptedBody, rec.Body.String())
+
+			mockService.AssertExpectations(t)
+		})
+	}
+}
+
+func Test_UnshortenURL(t *testing.T) {
+	tests := []struct {
+		Name           string
+		InputCode      string
+		ExceptedStatus int
+		ExceptedURL    string
+		ExceptedBody   string
+		SetUpMocks     func(service *mockservice)
+	}{
+		{
+			Name:           "Successfully Unshortened",
+			InputCode:      "3a",
+			ExceptedStatus: http.StatusFound,
+			ExceptedURL:    "https://go.dev",
+			SetUpMocks: func(service *mockservice) {
+				service.On("UnshortenURL", mock.Anything, "3a").
+					Return("https://go.dev", nil).Once()
+			},
+		},
+		{
+			Name:           "Service returned an error",
+			InputCode:      "3a",
+			ExceptedStatus: http.StatusInternalServerError,
+			ExceptedBody:   `{ "message": "some error :)" }`,
+			SetUpMocks: func(service *mockservice) {
+				service.On("UnshortenURL", mock.Anything, "3a").
+					Return("", &models.HTTPError{
+						Code:    http.StatusInternalServerError,
+						Message: "some error :)",
+					}).Once()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			mockService := mockservice{}
+
+			tt.SetUpMocks(&mockService)
+
+			e := echo.New()
+
+			req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/%s", tt.InputCode), nil)
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+
+			rec := httptest.NewRecorder()
+
+			c := e.NewContext(req, rec)
+
+			c.SetParamNames("code")
+			c.SetParamValues(tt.InputCode)
+
+			handler := NewHandler(&mockService)
+
+			err := handler.UnshortenURL(c)
+			if err != nil {
+				e.HTTPErrorHandler(err, c)
+			}
+
+			assert.Equal(t, tt.ExceptedStatus, rec.Code)
+
+			assert.Equal(t, tt.ExceptedURL, rec.Header().Get("Location"))
+
+			if tt.ExceptedBody != "" {
+				assert.JSONEq(t, tt.ExceptedBody, rec.Body.String())
+			}
 
 			mockService.AssertExpectations(t)
 		})
