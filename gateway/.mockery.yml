@@ -14,3 +14,7 @@ packages:
   github.com/misshanya/url-shortener/gateway/internal/service:
     config:
       all: true
+
+  github.com/misshanya/url-shortener/gateway/internal/transport/http:
+    config:
+      all: true
