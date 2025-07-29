@@ -14,3 +14,7 @@ packages:
   github.com/misshanya/url-shortener/statistics/internal/service:
     config:
       all: true
+
+  github.com/misshanya/url-shortener/statistics/internal/producer:
+    config:
+      all: true
