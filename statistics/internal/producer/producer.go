@@ -16,16 +16,20 @@ type service interface {
 	GetTopUnshortened(ctx context.Context, amount, ttl int) (*models.UnshortenedTop, error)
 }
 
+type kafkaWriter interface {
+	WriteMessages(ctx context.Context, msgs ...kafka.Message) error
+}
+
 type Producer struct {
 	l         *slog.Logger
 	svc       service
-	kw        *kafka.Writer
+	kw        kafkaWriter
 	topTTL    int // How old events we want to get in top (in seconds)
 	topAmount int // How many events we want to get in top
 	t         trace.Tracer
 }
 
-func New(l *slog.Logger, svc service, kw *kafka.Writer, topTTL, topAmount int, t trace.Tracer) *Producer {
+func New(l *slog.Logger, svc service, kw kafkaWriter, topTTL, topAmount int, t trace.Tracer) *Producer {
 	return &Producer{
 		l:         l,
 		svc:       svc,
