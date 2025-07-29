@@ -46,6 +46,7 @@ type App struct {
 	tracerProvider               *trace.TracerProvider
 	batchWriterShortenedTicker   *time.Ticker
 	batchWriterUnshortenedTicker *time.Ticker
+	producerTicker               *time.Ticker
 }
 
 func New(cfg *config.Config, l *slog.Logger) (*App, error) {
@@ -169,10 +170,11 @@ func (a *App) Start(ctx context.Context, errChan chan<- error) {
 
 	a.batchWriterShortenedTicker = time.NewTicker(10 * time.Second)
 	a.batchWriterUnshortenedTicker = time.NewTicker(10 * time.Second)
+	a.producerTicker = time.NewTicker(time.Duration(a.cfg.TopTTL) * time.Second)
 
 	go a.svc.ShortenedBatchWriter(ctx, a.batchWriterShortenedTicker.C)
 	go a.svc.UnshortenedBatchWriter(ctx, a.batchWriterUnshortenedTicker.C)
-	go a.producer.ProduceTop(ctx)
+	go a.producer.ProduceTop(ctx, a.producerTicker.C)
 	if err := a.e.Start(a.cfg.HttpSrv.Addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		errChan <- err
 	}
@@ -217,6 +219,12 @@ func (a *App) Stop(ctx context.Context) error {
 	}
 	if a.batchWriterUnshortenedTicker != nil {
 		a.batchWriterUnshortenedTicker.Stop()
+	}
+
+	// Stop producer ticker
+	a.l.Info("Stopping producer ticker")
+	if a.producerTicker != nil {
+		a.producerTicker.Stop()
 	}
 
 	if stopErr != nil {

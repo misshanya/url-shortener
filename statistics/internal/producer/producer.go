@@ -80,12 +80,10 @@ func (p *Producer) sendTopToKafka(ctx context.Context, top models.UnshortenedTop
 	return nil
 }
 
-func (p *Producer) ProduceTop(ctx context.Context) {
-	ticker := time.NewTicker(time.Duration(p.topTTL) * time.Second)
-
+func (p *Producer) ProduceTop(ctx context.Context, tick <-chan time.Time) {
 	for {
 		select {
-		case <-ticker.C:
+		case <-tick:
 			func() {
 				ctxTop, spanTop := p.t.Start(ctx, "ProduceTop")
 				defer spanTop.End()
