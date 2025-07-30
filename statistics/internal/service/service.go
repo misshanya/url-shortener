@@ -21,10 +21,15 @@ type metricsProvider interface {
 	Unshorten()
 }
 
+type topLockProvider interface {
+	Lock(ctx context.Context, ttl time.Duration) error
+}
+
 type Service struct {
-	l *slog.Logger
-	m metricsProvider
-	r clickHouseRepo
+	l       *slog.Logger
+	m       metricsProvider
+	r       clickHouseRepo
+	topLock topLockProvider
 
 	shortenedCh   chan models.ClickHouseEventShortened
 	unshortenedCh chan models.ClickHouseEventUnshortened
@@ -39,13 +44,15 @@ func New(
 	unshortenedCh chan models.ClickHouseEventUnshortened,
 	m metricsProvider,
 	r clickHouseRepo,
+	topLock topLockProvider,
 	t trace.Tracer,
 	DBBatchSize int,
 ) *Service {
 	return &Service{
-		l: l,
-		m: m,
-		r: r,
+		l:       l,
+		m:       m,
+		r:       r,
+		topLock: topLock,
 
 		shortenedCh:   shortenedCh,
 		unshortenedCh: unshortenedCh,
@@ -204,4 +211,9 @@ func (s *Service) GetTopUnshortened(ctx context.Context, amount, ttl int) (*mode
 	defer span.End()
 
 	return s.r.GetTopUnshortened(ctx, amount, ttl)
+}
+
+func (s *Service) LockTopWrite(ctx context.Context, ttl int) error {
+	timeTTL := time.Duration(ttl) * time.Second
+	return s.topLock.Lock(ctx, timeTTL)
 }

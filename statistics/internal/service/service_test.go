@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/misshanya/url-shortener/statistics/internal/errorz"
 	"github.com/misshanya/url-shortener/statistics/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -54,6 +55,7 @@ func Test_Shortened(t *testing.T) {
 				shortenedCh,
 				unshortenedCh,
 				&mockMetrics,
+				nil,
 				nil,
 				tracer,
 				10,
@@ -128,6 +130,7 @@ func Test_Unshortened(t *testing.T) {
 				shortenedCh,
 				unshortenedCh,
 				&mockMetrics,
+				nil,
 				nil,
 				tracer,
 				10,
@@ -218,6 +221,7 @@ func TestService_ShortenedBatchWriter(t *testing.T) {
 				unshortenedCh,
 				nil,
 				&mockClickHouse,
+				nil,
 				tracer,
 				tt.BatchSize,
 			)
@@ -314,6 +318,7 @@ func TestService_UnshortenedBatchWriter(t *testing.T) {
 				unshortenedCh,
 				nil,
 				&mockClickHouse,
+				nil,
 				tracer,
 				tt.BatchSize,
 			)
@@ -429,6 +434,7 @@ func TestService_GetTopUnshortened(t *testing.T) {
 				nil,
 				nil,
 				&mockClickHouse,
+				nil,
 				tracer,
 				10,
 			)
@@ -443,6 +449,65 @@ func TestService_GetTopUnshortened(t *testing.T) {
 			assert.Equal(t, tt.ExceptedResult, result)
 
 			mockClickHouse.AssertExpectations(t)
+		})
+	}
+}
+
+func TestService_LockTopWrite(t *testing.T) {
+	tests := []struct {
+		Name        string
+		InputTTL    int
+		ExceptedErr error
+		SetUpMocks  func(lockProv *mocktopLockProvider)
+	}{
+		{
+			Name:        "Successfully locked",
+			InputTTL:    5,
+			ExceptedErr: nil,
+			SetUpMocks: func(lockProv *mocktopLockProvider) {
+				lockProv.On("Lock", mock.Anything, time.Duration(5)*time.Second).
+					Return(nil).Once()
+			},
+		},
+		{
+			Name:        "Already locked",
+			InputTTL:    2,
+			ExceptedErr: errorz.ErrTopLocked,
+			SetUpMocks: func(lockProv *mocktopLockProvider) {
+				lockProv.On("Lock", mock.Anything, time.Duration(2)*time.Second).
+					Return(errorz.ErrTopLocked)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			mockLockProv := mocktopLockProvider{}
+
+			tt.SetUpMocks(&mockLockProv)
+
+			tracerProvider := noop.NewTracerProvider()
+			tracer := tracerProvider.Tracer("")
+
+			service := New(
+				slog.New(
+					slog.NewTextHandler(
+						os.Stdout,
+						&slog.HandlerOptions{}),
+				),
+				nil,
+				nil,
+				nil,
+				nil,
+				&mockLockProv,
+				tracer,
+				10,
+			)
+
+			err := service.LockTopWrite(context.Background(), tt.InputTTL)
+			assert.Equal(t, tt.ExceptedErr, err)
+
+			mockLockProv.AssertExpectations(t)
 		})
 	}
 }

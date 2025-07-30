@@ -136,6 +136,8 @@ services:
       CLICKHOUSE_BATCH_SIZE: "${STATISTICS_CLICKHOUSE_BATCH_SIZE}"
       TOP_TTL: "${CACHING_TTL}"
       TOP_AMOUNT: "${CACHING_SIZE}"
+      VALKEY_ADDR: "shortener_statistics-valkey:6379"
+      VALKEY_PASSWORD: "${STATISTICS_VALKEY_PASSWORD}"
       TRACING_COLLECTOR_ADDR: "shortener_jaeger:4317"
     depends_on:
       - shortener
@@ -153,6 +155,15 @@ services:
     ports:
       - "8123:8123"
     restart: unless-stopped
+    networks:
+      - shortener
+
+  statistics_valkey:
+    container_name: shortener_statistics-valkey
+    image: valkey/valkey
+    restart: unless-stopped
+    environment:
+      VALKEY_PASSWORD: "${STATISTICS_VALKEY_PASSWORD}"
     networks:
       - shortener
 

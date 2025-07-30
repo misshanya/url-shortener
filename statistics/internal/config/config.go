@@ -8,6 +8,7 @@ type Config struct {
 	Kafka      kafka
 	HttpSrv    httpServer
 	ClickHouse clickHouse
+	Valkey     valkey
 	Tracing    tracing
 
 	TopTTL    int `env:"TOP_TTL" env-default:"3600"`
@@ -27,6 +28,11 @@ type clickHouse struct {
 	User      string `env:"CLICKHOUSE_USER" env-required:"true"`
 	Password  string `env:"CLICKHOUSE_PASSWORD" env-required:"true"`
 	BatchSize int    `env:"CLICKHOUSE_BATCH_SIZE" env-required:"true"`
+}
+
+type valkey struct {
+	Addr     string `env:"VALKEY_ADDR" env-required:"true"`
+	Password string `env:"VALKEY_PASSWORD" env-required:"true"`
 }
 
 type tracing struct {

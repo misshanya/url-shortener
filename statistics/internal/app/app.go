@@ -17,6 +17,7 @@ import (
 	"github.com/misshanya/url-shortener/statistics/internal/repository"
 	"github.com/misshanya/url-shortener/statistics/internal/service"
 	"github.com/segmentio/kafka-go"
+	"github.com/valkey-io/valkey-go"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
@@ -43,6 +44,7 @@ type App struct {
 	e                            *echo.Echo
 	svc                          *service.Service
 	chConn                       clickhouse.Conn
+	valkeyClient                 valkey.Client
 	tracerProvider               *trace.TracerProvider
 	batchWriterShortenedTicker   *time.Ticker
 	batchWriterUnshortenedTicker *time.Ticker
@@ -114,6 +116,16 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 		return nil, fmt.Errorf("failed to ping ClickHouse: %w", err)
 	}
 
+	// Init Valkey connection
+	client, err := valkey.NewClient(valkey.ClientOption{
+		InitAddress: []string{cfg.Valkey.Addr},
+		Password:    cfg.Valkey.Password,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to init Valkey connection: %w", err)
+	}
+	a.valkeyClient = client
+
 	// Init metrics
 	m := metrics.New()
 
@@ -148,6 +160,7 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 
 	// Create a repository
 	repo := repository.NewClickHouseRepo(a.chConn)
+	valkeyRepo := repository.NewValkeyRepo(a.valkeyClient)
 
 	a.svc = service.New(
 		a.l,
@@ -155,6 +168,7 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 		make(chan models.ClickHouseEventUnshortened, 10),
 		m,
 		repo,
+		valkeyRepo,
 		tracer,
 		cfg.ClickHouse.BatchSize,
 	)
@@ -199,6 +213,9 @@ func (a *App) Stop(ctx context.Context) error {
 	if err := a.chConn.Close(); err != nil {
 		stopErr = errors.Join(stopErr, fmt.Errorf("failed to close ClickHouse connection: %w", err))
 	}
+
+	// Close Valkey connection
+	a.valkeyClient.Close()
 
 	// Stop metrics server
 	a.l.Info("Stopping http server...")

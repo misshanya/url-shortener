@@ -3,7 +3,9 @@ package producer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/misshanya/url-shortener/statistics/internal/errorz"
 	"github.com/misshanya/url-shortener/statistics/internal/models"
 	"github.com/segmentio/kafka-go"
 	"go.opentelemetry.io/otel/propagation"
@@ -14,6 +16,7 @@ import (
 
 type service interface {
 	GetTopUnshortened(ctx context.Context, amount, ttl int) (*models.UnshortenedTop, error)
+	LockTopWrite(ctx context.Context, ttl int) error
 }
 
 type kafkaWriter interface {
@@ -85,6 +88,17 @@ func (p *Producer) ProduceTop(ctx context.Context, tick <-chan time.Time) {
 		select {
 		case <-tick:
 			func() {
+				err := p.svc.LockTopWrite(ctx, p.topTTL/2)
+				if err != nil {
+					if errors.Is(err, errorz.ErrTopLocked) {
+						p.l.Info("Top write is already locked")
+						return
+					}
+					p.l.Error("failed to lock the top write", "error", err)
+					return
+				}
+				p.l.Info("Successfully locked top write")
+
 				ctxTop, spanTop := p.t.Start(ctx, "ProduceTop")
 				defer spanTop.End()
 

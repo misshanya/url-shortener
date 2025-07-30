@@ -12,6 +12,7 @@ require (
 	github.com/prometheus/client_golang v1.22.0
 	github.com/segmentio/kafka-go v0.4.48
 	github.com/stretchr/testify v1.10.0
+	github.com/valkey-io/valkey-go v1.0.63
 	go.opentelemetry.io/otel v1.37.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.37.0
 	go.opentelemetry.io/otel/sdk v1.37.0

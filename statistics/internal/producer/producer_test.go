@@ -3,6 +3,7 @@ package producer
 import (
 	"context"
 	"errors"
+	"github.com/misshanya/url-shortener/statistics/internal/errorz"
 	"github.com/misshanya/url-shortener/statistics/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -159,6 +160,8 @@ func Test_ProduceTop(t *testing.T) {
 					Run(func(args mock.Arguments) {
 						svcWg.Done()
 					}).Return(top, nil).Times(svcTimes)
+				svc.On("LockTopWrite", mock.Anything, topTTL/2).
+					Return(nil).Times(svcTimes)
 			},
 		},
 		{
@@ -187,6 +190,46 @@ func Test_ProduceTop(t *testing.T) {
 					Run(func(args mock.Arguments) {
 						svcWg.Done()
 					}).Return(top, nil).Times(svcTimes)
+				svc.On("LockTopWrite", mock.Anything, topTTL/2).
+					Return(nil).Times(svcTimes)
+			},
+		},
+		{
+			Name:                  "Write is locked",
+			AmountOfTicks:         1,
+			AmountOfServiceCalled: 1,
+			AmountOfSendTopCalled: 0,
+			SetUpMocks: func(
+				kw *mockkafkaWriter,
+				svc *mockservice,
+				top *models.UnshortenedTop,
+				topAmount, topTTL int,
+				kwTimes, svcTimes int,
+				kafkaWg *sync.WaitGroup, svcWg *sync.WaitGroup,
+			) {
+				svc.On("LockTopWrite", mock.Anything, topTTL/2).
+					Run(func(args mock.Arguments) {
+						svcWg.Done()
+					}).Return(errorz.ErrTopLocked).Once()
+			},
+		},
+		{
+			Name:                  "Failed to lock write",
+			AmountOfTicks:         1,
+			AmountOfServiceCalled: 1,
+			AmountOfSendTopCalled: 0,
+			SetUpMocks: func(
+				kw *mockkafkaWriter,
+				svc *mockservice,
+				top *models.UnshortenedTop,
+				topAmount, topTTL int,
+				kwTimes, svcTimes int,
+				kafkaWg *sync.WaitGroup, svcWg *sync.WaitGroup,
+			) {
+				svc.On("LockTopWrite", mock.Anything, topTTL).
+					Run(func(args mock.Arguments) {
+						svcWg.Done()
+					}).Return(errors.New("some unknown error")).Once()
 			},
 		},
 	}
