@@ -87,6 +87,7 @@ func Test_sendTopToKafka(t *testing.T) {
 				nil,
 				&kw,
 				300,
+				30,
 				5,
 				tracer,
 			)
@@ -265,6 +266,7 @@ func Test_ProduceTop(t *testing.T) {
 				&svc,
 				&kw,
 				tt.TopTTL,
+				tt.TopTTL/2,
 				tt.TopAmount,
 				tracer,
 			)
@@ -272,12 +274,12 @@ func Test_ProduceTop(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			tick := make(chan time.Time)
+			tick := make(chan struct{})
 
 			go producer.ProduceTop(ctx, tick)
 
 			for range tt.AmountOfTicks {
-				tick <- time.Time{}
+				tick <- struct{}{}
 			}
 
 			svcWg.Wait()

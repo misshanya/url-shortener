@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"log/slog"
-	"time"
 )
 
 type service interface {
@@ -28,16 +27,18 @@ type Producer struct {
 	svc       service
 	kw        kafkaWriter
 	topTTL    int // How old events we want to get in top (in seconds)
+	lockTTL   int
 	topAmount int // How many events we want to get in top
 	t         trace.Tracer
 }
 
-func New(l *slog.Logger, svc service, kw kafkaWriter, topTTL, topAmount int, t trace.Tracer) *Producer {
+func New(l *slog.Logger, svc service, kw kafkaWriter, topTTL, lockTTL, topAmount int, t trace.Tracer) *Producer {
 	return &Producer{
 		l:         l,
 		svc:       svc,
 		kw:        kw,
 		topTTL:    topTTL,
+		lockTTL:   lockTTL,
 		topAmount: topAmount,
 		t:         t,
 	}
@@ -83,12 +84,12 @@ func (p *Producer) sendTopToKafka(ctx context.Context, top models.UnshortenedTop
 	return nil
 }
 
-func (p *Producer) ProduceTop(ctx context.Context, tick <-chan time.Time) {
+func (p *Producer) ProduceTop(ctx context.Context, tick <-chan struct{}) {
 	for {
 		select {
 		case <-tick:
 			func() {
-				err := p.svc.LockTopWrite(ctx, p.topTTL/2)
+				err := p.svc.LockTopWrite(ctx, p.lockTTL)
 				if err != nil {
 					if errors.Is(err, errorz.ErrTopLocked) {
 						p.l.Info("Top write is already locked")

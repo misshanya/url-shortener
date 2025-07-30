@@ -10,9 +10,11 @@ type Config struct {
 	ClickHouse clickHouse
 	Valkey     valkey
 	Tracing    tracing
+	Scheduler  scheduler
 
 	TopTTL    int `env:"TOP_TTL" env-default:"3600"`
 	TopAmount int `env:"TOP_AMOUNT" env-default:"100"`
+	LockTTL   int `env:"PRODUCER_LOCK_INTERVAL_SECONDS" env-default:"30"`
 }
 
 type kafka struct {
@@ -37,6 +39,10 @@ type valkey struct {
 
 type tracing struct {
 	CollectorAddr string `env:"TRACING_COLLECTOR_ADDR" env-required:"true"`
+}
+
+type scheduler struct {
+	Crontab string `env:"PRODUCER_SCHEDULER_CRONTAB" env-default:"0 * * * *"`
 }
 
 func NewConfig() (*Config, error) {

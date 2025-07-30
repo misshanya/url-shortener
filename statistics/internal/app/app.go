@@ -16,6 +16,7 @@ import (
 	"github.com/misshanya/url-shortener/statistics/internal/producer"
 	"github.com/misshanya/url-shortener/statistics/internal/repository"
 	"github.com/misshanya/url-shortener/statistics/internal/service"
+	"github.com/misshanya/url-shortener/statistics/pkg/scheduler"
 	"github.com/segmentio/kafka-go"
 	"github.com/valkey-io/valkey-go"
 	"go.opentelemetry.io/otel"
@@ -48,7 +49,7 @@ type App struct {
 	tracerProvider               *trace.TracerProvider
 	batchWriterShortenedTicker   *time.Ticker
 	batchWriterUnshortenedTicker *time.Ticker
-	producerTicker               *time.Ticker
+	producerScheduler            *scheduler.Scheduler
 }
 
 func New(cfg *config.Config, l *slog.Logger) (*App, error) {
@@ -126,6 +127,14 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 	}
 	a.valkeyClient = client
 
+	// Create a scheduler for producer
+	a.l.Info("Creating scheduler", "crontab", cfg.Scheduler.Crontab)
+	producerScheduler, err := scheduler.NewScheduler(cfg.Scheduler.Crontab)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create a scheduler for producer: %w", err)
+	}
+	a.producerScheduler = producerScheduler
+
 	// Init metrics
 	m := metrics.New()
 
@@ -173,7 +182,7 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 		cfg.ClickHouse.BatchSize,
 	)
 	a.consumer = consumer.New(a.l, a.kafkaReader, a.svc, tracer)
-	a.producer = producer.New(a.l, a.svc, a.kafkaWriter, cfg.TopTTL, cfg.TopAmount, tracer)
+	a.producer = producer.New(a.l, a.svc, a.kafkaWriter, cfg.TopTTL, cfg.LockTTL, cfg.TopAmount, tracer)
 
 	return a, nil
 }
@@ -184,11 +193,11 @@ func (a *App) Start(ctx context.Context, errChan chan<- error) {
 
 	a.batchWriterShortenedTicker = time.NewTicker(10 * time.Second)
 	a.batchWriterUnshortenedTicker = time.NewTicker(10 * time.Second)
-	a.producerTicker = time.NewTicker(time.Duration(a.cfg.TopTTL) * time.Second)
+	a.producerScheduler.Start()
 
 	go a.svc.ShortenedBatchWriter(ctx, a.batchWriterShortenedTicker.C)
 	go a.svc.UnshortenedBatchWriter(ctx, a.batchWriterUnshortenedTicker.C)
-	go a.producer.ProduceTop(ctx, a.producerTicker.C)
+	go a.producer.ProduceTop(ctx, a.producerScheduler.Tick)
 	if err := a.e.Start(a.cfg.HttpSrv.Addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		errChan <- err
 	}
@@ -238,10 +247,10 @@ func (a *App) Stop(ctx context.Context) error {
 		a.batchWriterUnshortenedTicker.Stop()
 	}
 
-	// Stop producer ticker
-	a.l.Info("Stopping producer ticker")
-	if a.producerTicker != nil {
-		a.producerTicker.Stop()
+	// Shut down scheduler
+	a.l.Info("Stopping producer scheduler")
+	if err := a.producerScheduler.Shutdown(); err != nil {
+		stopErr = errors.Join(stopErr, fmt.Errorf("failed to shutdown producer scheduler: %w", err))
 	}
 
 	if stopErr != nil {
