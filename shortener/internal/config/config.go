@@ -19,7 +19,8 @@ type server struct {
 }
 
 type postgres struct {
-	URL string `env:"POSTGRES_URL" env-required:"true"`
+	URL      string `env:"POSTGRES_URL" env-required:"true"`
+	MaxConns int32  `env:"POSTGRES_MAX_CONNECTIONS" env-default:"100"`
 }
 
 type kafka struct {
