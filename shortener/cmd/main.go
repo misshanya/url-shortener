@@ -20,23 +20,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create app
 	a, err := app.New(context.Background(), cfg, logger)
 	if err != nil {
 		logger.Error("failed to create app", slog.Any("error", err))
 		os.Exit(1)
 	}
 
-	// Create ctx for graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Start server
 	errChan := make(chan error)
 	go a.Start(ctx, errChan)
 
-	// Read from channels
-	// Exit with error OR gracefully shut down
 	select {
 	case err := <-errChan:
 		logger.Error("failed to start server", slog.Any("error", err))

@@ -53,86 +53,40 @@ func InterceptorLogger(l *slog.Logger) logging.Logger {
 	})
 }
 
+// New creates and initializes a new instance of App
 func New(ctx context.Context, cfg *config.Config, l *slog.Logger) (*App, error) {
 	a := &App{
 		cfg: cfg,
 		l:   l,
 	}
 
-	// Init tracing
-	tracerProvider, err := newTracerProvider(context.Background(), cfg.Tracing.CollectorAddr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create tracer provider: %w", err)
+	if err := a.initTracing(); err != nil {
+		return nil, err
 	}
-	a.tracerProvider = tracerProvider
 	tracer := a.tracerProvider.Tracer(serviceName)
 
-	// Add a listener address
-	lis, err := net.Listen("tcp", cfg.Server.Addr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to listen: %w", err)
-	}
-	a.lis = &lis
-
-	// Init db connection
-	a.dbPool, err = initDB(ctx, cfg.Postgres.URL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to init db connection: %w", err)
+	if err := a.initListener(); err != nil {
+		return nil, err
 	}
 
-	// Init Valkey connection
-	client, err := valkey.NewClient(valkey.ClientOption{
-		InitAddress: []string{cfg.Valkey.Addr},
-		Password:    cfg.Valkey.Password,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to init Valkey connection: %w", err)
-	}
-	a.valkeyClient = client
-
-	// Migrate db
-	if err := db.Migrate(sql.OpenDB(stdlib.GetConnector(*a.dbPool.Config().ConnConfig))); err != nil {
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
+	if err := a.initDB(ctx); err != nil {
+		return nil, err
 	}
 
-	// Init SQL queries
+	if err := a.initValkey(); err != nil {
+		return nil, err
+	}
+
+	if err := a.migrateDB(); err != nil {
+		return nil, err
+	}
+
 	queries := storage.New(a.dbPool)
 
-	// Configure interceptor logger
-	opts := []logging.Option{
-		logging.WithLogOnEvents(logging.StartCall, logging.FinishCall),
-	}
+	a.initGRPCServer()
 
-	// Create a gRPC server
-	a.grpcSrv = grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			logging.UnaryServerInterceptor(InterceptorLogger(a.l), opts...),
-		),
-		grpc.StatsHandler(
-			otelgrpc.NewServerHandler(
-				otelgrpc.WithTracerProvider(a.tracerProvider),
-			),
-		),
-	)
-
-	// Test connection with Kafka
-	testKafkaConn, err := kafka.Dial("tcp", cfg.Kafka.Addr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Kafka: %w", err)
-	}
-	testKafkaConn.Close()
-
-	// Create a Kafka reader
-	a.kafkaReader = kafka.NewReader(kafka.ReaderConfig{
-		Brokers:     []string{cfg.Kafka.Addr},
-		GroupID:     "shortener-group",
-		GroupTopics: []string{"shortener.top_unshortened"},
-	})
-
-	// Create a Kafka writer
-	a.kafkaWriter = &kafka.Writer{
-		Addr:                   kafka.TCP(cfg.Kafka.Addr),
-		AllowAutoTopicCreation: true,
+	if err := a.initKafka(); err != nil {
+		return nil, err
 	}
 
 	repo := repository.NewPostgresRepo(queries)
@@ -146,6 +100,7 @@ func New(ctx context.Context, cfg *config.Config, l *slog.Logger) (*App, error) 
 	return a, nil
 }
 
+// Start performs a start of all functional services
 func (a *App) Start(ctx context.Context, errChan chan<- error) {
 	a.l.Info("starting server", slog.String("addr", a.cfg.Server.Addr))
 	go a.consumer.ReadMessages(ctx)
@@ -154,29 +109,25 @@ func (a *App) Start(ctx context.Context, errChan chan<- error) {
 	}
 }
 
+// Stop performs a graceful shutdown for all components
 func (a *App) Stop(ctx context.Context) error {
 	a.l.Info("[!] Shutting down...")
 
 	var stopErr error
 
-	// Stop server
 	a.l.Info("Stopping gRPC server...")
 	a.grpcSrv.GracefulStop()
 
-	// Close DB pool
 	a.l.Info("Closing database pool...")
 	a.dbPool.Close()
 
-	// Close Valkey connection
 	a.l.Info("Closing Valkey connection...")
 	a.valkeyClient.Close()
 
-	// Close Kafka connection
 	if err := a.kafkaWriter.Close(); err != nil {
 		stopErr = errors.Join(stopErr, fmt.Errorf("failed to close Kafka connection: %w", err))
 	}
 
-	// Shut down tracer provider
 	a.l.Info("Shutting down tracer provider...")
 	if err := a.tracerProvider.Shutdown(ctx); err != nil {
 		stopErr = errors.Join(stopErr, fmt.Errorf("failed to shutdown tracer provider: %w", err))
@@ -190,17 +141,109 @@ func (a *App) Stop(ctx context.Context) error {
 	return nil
 }
 
+// initDB initializes a new pool for PostgreSQL db
 func initDB(ctx context.Context, dbURL string) (*pgxpool.Pool, error) {
 	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
 		return nil, err
 	}
 
-	pool.Config().MaxConns = 100 // Max 100 connections
+	pool.Config().MaxConns = 100
 
 	return pool, nil
 }
 
+// initTracing sets up a new OpenTelemetry provider
+func (a *App) initTracing() error {
+	tracerProvider, err := newTracerProvider(context.Background(), a.cfg.Tracing.CollectorAddr)
+	if err != nil {
+		return fmt.Errorf("failed to create tracer provider: %w", err)
+	}
+	a.tracerProvider = tracerProvider
+	return nil
+}
+
+// initListener sets up a tcp listener ready for gRPC
+func (a *App) initListener() error {
+	lis, err := net.Listen("tcp", a.cfg.Server.Addr)
+	if err != nil {
+		return fmt.Errorf("failed to listen: %w", err)
+	}
+	a.lis = &lis
+	return nil
+}
+
+// initDB sets up PostgreSQL db
+func (a *App) initDB(ctx context.Context) error {
+	dbPool, err := initDB(ctx, a.cfg.Postgres.URL)
+	if err != nil {
+		return fmt.Errorf("failed to init db connection: %w", err)
+	}
+	a.dbPool = dbPool
+	return nil
+}
+
+// migrateDB performs a migration to ensure the schema is up to date
+func (a *App) migrateDB() error {
+	return db.Migrate(sql.OpenDB(stdlib.GetConnector(*a.dbPool.Config().ConnConfig)))
+}
+
+// initValkey sets up a connection to cache
+func (a *App) initValkey() error {
+	client, err := valkey.NewClient(valkey.ClientOption{
+		InitAddress: []string{a.cfg.Valkey.Addr},
+		Password:    a.cfg.Valkey.Password,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to init Valkey connection: %w", err)
+	}
+	a.valkeyClient = client
+	return nil
+}
+
+// initGRPCServer sets up a gRPC server with interceptor logger
+func (a *App) initGRPCServer() {
+	opts := []logging.Option{
+		logging.WithLogOnEvents(logging.StartCall, logging.FinishCall),
+	}
+
+	a.grpcSrv = grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			logging.UnaryServerInterceptor(InterceptorLogger(a.l), opts...),
+		),
+		grpc.StatsHandler(
+			otelgrpc.NewServerHandler(
+				otelgrpc.WithTracerProvider(a.tracerProvider),
+			),
+		),
+	)
+}
+
+// initKafka sets up both Kafka reader and writer
+// It pings a Kafka server before initialize
+func (a *App) initKafka() error {
+	// Test a connection before creating reader and writer
+	testKafkaConn, err := kafka.Dial("tcp", a.cfg.Kafka.Addr)
+	if err != nil {
+		return fmt.Errorf("failed to connect to Kafka: %w", err)
+	}
+	testKafkaConn.Close()
+
+	a.kafkaReader = kafka.NewReader(kafka.ReaderConfig{
+		Brokers:     []string{a.cfg.Kafka.Addr},
+		GroupID:     "shortener-group",
+		GroupTopics: []string{"shortener.top_unshortened"},
+	})
+
+	a.kafkaWriter = &kafka.Writer{
+		Addr:                   kafka.TCP(a.cfg.Kafka.Addr),
+		AllowAutoTopicCreation: true,
+	}
+
+	return nil
+}
+
+// newTracerProvider creates a new OpenTelemetry provider
 func newTracerProvider(ctx context.Context, collectorAddr string) (*trace.TracerProvider, error) {
 	exporter, err := otlptracegrpc.New(ctx,
 		otlptracegrpc.WithInsecure(),

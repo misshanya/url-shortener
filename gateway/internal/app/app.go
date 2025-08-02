@@ -37,86 +37,27 @@ type App struct {
 	tracerProvider *trace.TracerProvider
 }
 
+// New creates and initializes a new instance of App
 func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 	a := &App{
 		cfg: cfg,
 		l:   l,
 	}
 
-	// Init tracing
-	tracerProvider, err := newTracerProvider(context.Background(), cfg.Tracing.CollectorAddr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create tracer provider: %w", err)
+	if err := a.initTracing(); err != nil {
+		return nil, err
 	}
-	a.tracerProvider = tracerProvider
 
-	// Init gRPC connection to the shortener service
-	grpcConn, err := grpc.NewClient(a.cfg.GRPCClient.ServerAddress,
-		grpc.WithTransportCredentials(
-			insecure.NewCredentials(),
-		),
-		grpc.WithStatsHandler(
-			otelgrpc.NewClientHandler(
-				otelgrpc.WithTracerProvider(a.tracerProvider),
-			),
-		),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to init gRPC connection to the shortener service: %w", err)
+	if err := a.initGRPCClient(); err != nil {
+		return nil, err
 	}
-	a.grpcConn = grpcConn
-
-	// Create gRPC client for the shortener service
 	grpcClient := pb.NewURLShortenerServiceClient(a.grpcConn)
 
-	// Init service
 	svc := service.NewService(grpcClient, a.cfg.Server.PublicHost)
-
-	// Init handler
 	shortenerHandler := handler.NewHandler(svc)
 
-	// Init Echo
-	a.e = echo.New()
+	a.initEcho()
 
-	// CORS
-	a.e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{cfg.Server.CORSOrigin},
-	}))
-
-	// Tracer
-	a.e.Use(otelecho.Middleware(serviceName, otelecho.WithTracerProvider(a.tracerProvider)))
-
-	// Logger
-	a.e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
-		LogStatus:   true,
-		LogURI:      true,
-		LogError:    true,
-		HandleError: true,
-		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
-			if v.Error == nil {
-				a.l.LogAttrs(context.Background(), slog.LevelInfo, "REQUEST",
-					slog.String("uri", v.URI),
-					slog.Int("status", v.Status),
-					slog.String("ip", v.RemoteIP),
-					slog.String("latency", time.Now().Sub(v.StartTime).String()),
-				)
-			} else {
-				a.l.LogAttrs(context.Background(), slog.LevelError, "REQUEST_ERROR",
-					slog.String("uri", v.URI),
-					slog.Int("status", v.Status),
-					slog.String("ip", v.RemoteIP),
-					slog.String("latency", time.Now().Sub(v.StartTime).String()),
-					slog.String("err", v.Error.Error()),
-				)
-			}
-			return nil
-		},
-	}))
-
-	// Recoverer
-	a.e.Use(middleware.Recover())
-
-	// Connect handlers to the routes
 	a.e.POST("/shorten/batch", shortenerHandler.ShortenURLBatch)
 	a.e.POST("/shorten", shortenerHandler.ShortenURL)
 	a.e.GET("/:code", shortenerHandler.UnshortenURL)
@@ -124,6 +65,7 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 	return a, nil
 }
 
+// Start performs a start of all functional services
 func (a *App) Start(errChan chan<- error) {
 	a.l.Info("starting server", slog.String("addr", a.cfg.Server.Addr))
 	if err := a.e.Start(a.cfg.Server.Addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -131,6 +73,7 @@ func (a *App) Start(errChan chan<- error) {
 	}
 }
 
+// Stop performs a graceful shutdown for all components
 func (a *App) Stop(ctx context.Context) error {
 	a.l.Info("[!] Shutting down...")
 
@@ -159,6 +102,75 @@ func (a *App) Stop(ctx context.Context) error {
 	return nil
 }
 
+// initTracing sets up a new OpenTelemetry provider
+func (a *App) initTracing() error {
+	tracerProvider, err := newTracerProvider(context.Background(), a.cfg.Tracing.CollectorAddr)
+	if err != nil {
+		return fmt.Errorf("failed to create tracer provider: %w", err)
+	}
+	a.tracerProvider = tracerProvider
+	return nil
+}
+
+// initGRPCClient sets up a new gRPC connection to shortener service
+func (a *App) initGRPCClient() error {
+	grpcConn, err := grpc.NewClient(a.cfg.GRPCClient.ServerAddress,
+		grpc.WithTransportCredentials(
+			insecure.NewCredentials(),
+		),
+		grpc.WithStatsHandler(
+			otelgrpc.NewClientHandler(
+				otelgrpc.WithTracerProvider(a.tracerProvider),
+			),
+		),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to init gRPC connection to the shortener service: %w", err)
+	}
+	a.grpcConn = grpcConn
+	return nil
+}
+
+// initEcho sets up a new Echo instance with CORS, tracer, logger and recoverer
+func (a *App) initEcho() {
+	a.e = echo.New()
+
+	a.e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{a.cfg.Server.CORSOrigin},
+	}))
+
+	a.e.Use(otelecho.Middleware(serviceName, otelecho.WithTracerProvider(a.tracerProvider)))
+
+	a.e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogStatus:   true,
+		LogURI:      true,
+		LogError:    true,
+		HandleError: true,
+		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+			if v.Error == nil {
+				a.l.LogAttrs(context.Background(), slog.LevelInfo, "REQUEST",
+					slog.String("uri", v.URI),
+					slog.Int("status", v.Status),
+					slog.String("ip", v.RemoteIP),
+					slog.String("latency", time.Now().Sub(v.StartTime).String()),
+				)
+			} else {
+				a.l.LogAttrs(context.Background(), slog.LevelError, "REQUEST_ERROR",
+					slog.String("uri", v.URI),
+					slog.Int("status", v.Status),
+					slog.String("ip", v.RemoteIP),
+					slog.String("latency", time.Now().Sub(v.StartTime).String()),
+					slog.String("err", v.Error.Error()),
+				)
+			}
+			return nil
+		},
+	}))
+
+	a.e.Use(middleware.Recover())
+}
+
+// newTracerProvider creates a new OpenTelemetry provider
 func newTracerProvider(ctx context.Context, collectorAddr string) (*trace.TracerProvider, error) {
 	exporter, err := otlptracegrpc.New(ctx,
 		otlptracegrpc.WithInsecure(),

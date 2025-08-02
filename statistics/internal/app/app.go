@@ -52,93 +52,213 @@ type App struct {
 	producerScheduler            *scheduler.Scheduler
 }
 
+// New creates and initializes a new instance of App
 func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 	a := &App{
 		cfg: cfg,
 		l:   l,
 	}
 
-	// Init tracing
-	tracerProvider, err := newTracerProvider(context.Background(), cfg.Tracing.CollectorAddr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create tracer provider: %w", err)
+	if err := a.initTracing(); err != nil {
+		return nil, err
 	}
-	a.tracerProvider = tracerProvider
 	tracer := a.tracerProvider.Tracer(serviceName)
 
-	// Test connection with Kafka
-	testKafkaConn, err := kafka.Dial("tcp", cfg.Kafka.Addr)
+	if err := a.initKafka(); err != nil {
+		return nil, err
+	}
+
+	if err := a.initClickHouse(); err != nil {
+		return nil, err
+	}
+
+	if err := a.initValkey(); err != nil {
+		return nil, err
+	}
+
+	if err := a.initScheduler(); err != nil {
+		return nil, err
+	}
+
+	m := metrics.New()
+
+	a.initEcho()
+
+	a.e.GET("/metrics", echoprometheus.NewHandler())
+
+	repo := repository.NewClickHouseRepo(a.chConn)
+	valkeyRepo := repository.NewValkeyRepo(a.valkeyClient)
+	a.svc = service.New(
+		a.l,
+		make(chan models.ClickHouseEventShortened, 10),
+		make(chan models.ClickHouseEventUnshortened, 10),
+		m,
+		repo,
+		valkeyRepo,
+		tracer,
+		cfg.ClickHouse.BatchSize,
+	)
+	a.consumer = consumer.New(a.l, a.kafkaReader, a.svc, tracer)
+	a.producer = producer.New(a.l, a.svc, a.kafkaWriter, cfg.TopTTL, cfg.LockTTL, cfg.TopAmount, tracer)
+
+	return a, nil
+}
+
+// Start performs a start of all functional services
+func (a *App) Start(ctx context.Context, errChan chan<- error) {
+	a.l.Info("Starting...")
+	go a.consumer.ReadMessages(ctx)
+
+	a.batchWriterShortenedTicker = time.NewTicker(10 * time.Second)
+	a.batchWriterUnshortenedTicker = time.NewTicker(10 * time.Second)
+	a.producerScheduler.Start()
+
+	go a.svc.ShortenedBatchWriter(ctx, a.batchWriterShortenedTicker.C)
+	go a.svc.UnshortenedBatchWriter(ctx, a.batchWriterUnshortenedTicker.C)
+	go a.producer.ProduceTop(ctx, a.producerScheduler.Tick)
+	if err := a.e.Start(a.cfg.HttpSrv.Addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		errChan <- err
+	}
+}
+
+// Stop performs a graceful shutdown for all components
+func (a *App) Stop(ctx context.Context) error {
+	a.l.Info("[!] Shutting down...")
+
+	var stopErr error
+
+	if err := a.kafkaReader.Close(); err != nil {
+		stopErr = errors.Join(stopErr, fmt.Errorf("failed to close Kafka reader connection: %w", err))
+	}
+
+	if err := a.kafkaWriter.Close(); err != nil {
+		stopErr = errors.Join(stopErr, fmt.Errorf("failed to close Kafka writer connection: %w", err))
+	}
+
+	if err := a.chConn.Close(); err != nil {
+		stopErr = errors.Join(stopErr, fmt.Errorf("failed to close ClickHouse connection: %w", err))
+	}
+
+	a.valkeyClient.Close()
+
+	a.l.Info("Stopping http server...")
+	if err := a.e.Shutdown(ctx); err != nil {
+		stopErr = errors.Join(stopErr, fmt.Errorf("failed to shutdown http server: %w", err))
+	}
+
+	a.l.Info("Shutting down tracer provider...")
+	if err := a.tracerProvider.Shutdown(ctx); err != nil {
+		stopErr = errors.Join(stopErr, fmt.Errorf("failed to shutdown tracer provider: %w", err))
+	}
+
+	a.l.Info("Stopping batch writer tickers")
+	if a.batchWriterShortenedTicker != nil {
+		a.batchWriterShortenedTicker.Stop()
+	}
+	if a.batchWriterUnshortenedTicker != nil {
+		a.batchWriterUnshortenedTicker.Stop()
+	}
+
+	a.l.Info("Stopping producer scheduler")
+	if err := a.producerScheduler.Shutdown(); err != nil {
+		stopErr = errors.Join(stopErr, fmt.Errorf("failed to shutdown producer scheduler: %w", err))
+	}
+
+	if stopErr != nil {
+		return stopErr
+	}
+
+	a.l.Info("Stopped gracefully")
+	return nil
+}
+
+// initTracing sets up a new OpenTelemetry provider
+func (a *App) initTracing() error {
+	tracerProvider, err := newTracerProvider(context.Background(), a.cfg.Tracing.CollectorAddr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Kafka: %w", err)
+		return fmt.Errorf("failed to create tracer provider: %w", err)
+	}
+	a.tracerProvider = tracerProvider
+	return nil
+}
+
+// initKafka sets up both Kafka reader and writer
+// It pings a Kafka server before initialize
+func (a *App) initKafka() error {
+	// Test a connection before creating reader and writer
+	testKafkaConn, err := kafka.Dial("tcp", a.cfg.Kafka.Addr)
+	if err != nil {
+		return fmt.Errorf("failed to connect to Kafka: %w", err)
 	}
 	testKafkaConn.Close()
 
-	// Create a Kafka reader
 	a.kafkaReader = kafka.NewReader(kafka.ReaderConfig{
-		Brokers:     []string{cfg.Kafka.Addr},
+		Brokers:     []string{a.cfg.Kafka.Addr},
 		GroupID:     "statistics-group",
 		GroupTopics: []string{"shortener.shortened", "shortener.unshortened"},
 	})
 
-	// Create a Kafka writer
 	a.kafkaWriter = &kafka.Writer{
-		Addr:                   kafka.TCP(cfg.Kafka.Addr),
+		Addr:                   kafka.TCP(a.cfg.Kafka.Addr),
 		AllowAutoTopicCreation: true,
 	}
 
-	// Configure options for ClickHouse
-	chOptions := clickhouse.Options{
-		Addr: []string{cfg.ClickHouse.Addr},
+	return nil
+}
+
+// initClickHouse sets up db connection and performs a migration to ensure the schema is up to date
+func (a *App) initClickHouse() error {
+	options := clickhouse.Options{
+		Addr: []string{a.cfg.ClickHouse.Addr},
 		Auth: clickhouse.Auth{
 			Database: "default",
-			Username: cfg.ClickHouse.User,
-			Password: cfg.ClickHouse.Password,
+			Username: a.cfg.ClickHouse.User,
+			Password: a.cfg.ClickHouse.Password,
 		},
 		Debug: true,
 		Debugf: func(format string, v ...interface{}) {
-			l.Info(fmt.Sprintf(format, v))
+			a.l.Info(fmt.Sprintf(format, v))
 		},
 	}
 
-	// Migrate ClickHouse
-	if err := db.Migrate(chOptions); err != nil {
-		return nil, fmt.Errorf("failed to migrate ClickHouse: %w", err)
+	if err := db.Migrate(options); err != nil {
+		return fmt.Errorf("failed to migrate ClickHouse: %w", err)
 	}
 
-	// Create a ClickHouse connection
-	chConn, err := clickhouse.Open(&chOptions)
+	chConn, err := clickhouse.Open(&options)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to ClickHouse: %w", err)
+		return fmt.Errorf("failed to connect to ClickHouse: %w", err)
 	}
 	a.chConn = chConn
 
-	// Test connection with ClickHouse
-	if err := a.chConn.Ping(context.Background()); err != nil {
-		return nil, fmt.Errorf("failed to ping ClickHouse: %w", err)
-	}
+	return nil
+}
 
-	// Init Valkey connection
+// initValkey sets up a connection to cache
+func (a *App) initValkey() error {
 	client, err := valkey.NewClient(valkey.ClientOption{
-		InitAddress: []string{cfg.Valkey.Addr},
-		Password:    cfg.Valkey.Password,
+		InitAddress: []string{a.cfg.Valkey.Addr},
+		Password:    a.cfg.Valkey.Password,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to init Valkey connection: %w", err)
+		return fmt.Errorf("failed to init Valkey connection: %w", err)
 	}
 	a.valkeyClient = client
+	return nil
+}
 
-	// Create a scheduler for producer
-	a.l.Info("Creating scheduler", "crontab", cfg.Scheduler.Crontab)
-	producerScheduler, err := scheduler.NewScheduler(cfg.Scheduler.Crontab)
+// initScheduler sets up a cron for producer
+func (a *App) initScheduler() error {
+	producerScheduler, err := scheduler.NewScheduler(a.cfg.Scheduler.Crontab)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create a scheduler for producer: %w", err)
+		return fmt.Errorf("failed to create a scheduler for producer: %w", err)
 	}
 	a.producerScheduler = producerScheduler
+	return nil
+}
 
-	// Init metrics
-	m := metrics.New()
-
-	// Create http server to gather metrics from
+// initEcho sets up a new Echo instance with logger
+func (a *App) initEcho() {
 	a.e = echo.New()
 	a.e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogStatus:   true,
@@ -165,102 +285,9 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 			return nil
 		},
 	}))
-	a.e.GET("/metrics", echoprometheus.NewHandler())
-
-	// Create a repository
-	repo := repository.NewClickHouseRepo(a.chConn)
-	valkeyRepo := repository.NewValkeyRepo(a.valkeyClient)
-
-	a.svc = service.New(
-		a.l,
-		make(chan models.ClickHouseEventShortened, 10),
-		make(chan models.ClickHouseEventUnshortened, 10),
-		m,
-		repo,
-		valkeyRepo,
-		tracer,
-		cfg.ClickHouse.BatchSize,
-	)
-	a.consumer = consumer.New(a.l, a.kafkaReader, a.svc, tracer)
-	a.producer = producer.New(a.l, a.svc, a.kafkaWriter, cfg.TopTTL, cfg.LockTTL, cfg.TopAmount, tracer)
-
-	return a, nil
 }
 
-func (a *App) Start(ctx context.Context, errChan chan<- error) {
-	a.l.Info("starting consumer, batch writers, producer and http server for prometheus")
-	go a.consumer.ReadMessages(ctx)
-
-	a.batchWriterShortenedTicker = time.NewTicker(10 * time.Second)
-	a.batchWriterUnshortenedTicker = time.NewTicker(10 * time.Second)
-	a.producerScheduler.Start()
-
-	go a.svc.ShortenedBatchWriter(ctx, a.batchWriterShortenedTicker.C)
-	go a.svc.UnshortenedBatchWriter(ctx, a.batchWriterUnshortenedTicker.C)
-	go a.producer.ProduceTop(ctx, a.producerScheduler.Tick)
-	if err := a.e.Start(a.cfg.HttpSrv.Addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		errChan <- err
-	}
-}
-
-func (a *App) Stop(ctx context.Context) error {
-	a.l.Info("[!] Shutting down...")
-
-	var stopErr error
-
-	// Close Kafka reader connection
-	if err := a.kafkaReader.Close(); err != nil {
-		stopErr = errors.Join(stopErr, fmt.Errorf("failed to close Kafka reader connection: %w", err))
-	}
-
-	// Close Kafka writer connection
-	if err := a.kafkaWriter.Close(); err != nil {
-		stopErr = errors.Join(stopErr, fmt.Errorf("failed to close Kafka writer connection: %w", err))
-	}
-
-	// Close ClickHouse connection
-	if err := a.chConn.Close(); err != nil {
-		stopErr = errors.Join(stopErr, fmt.Errorf("failed to close ClickHouse connection: %w", err))
-	}
-
-	// Close Valkey connection
-	a.valkeyClient.Close()
-
-	// Stop metrics server
-	a.l.Info("Stopping http server...")
-	if err := a.e.Shutdown(ctx); err != nil {
-		stopErr = errors.Join(stopErr, fmt.Errorf("failed to shutdown http server: %w", err))
-	}
-
-	// Shut down tracer provider
-	a.l.Info("Shutting down tracer provider...")
-	if err := a.tracerProvider.Shutdown(ctx); err != nil {
-		stopErr = errors.Join(stopErr, fmt.Errorf("failed to shutdown tracer provider: %w", err))
-	}
-
-	// Stop batch writer ticker
-	a.l.Info("Stopping batch writer tickers")
-	if a.batchWriterShortenedTicker != nil {
-		a.batchWriterShortenedTicker.Stop()
-	}
-	if a.batchWriterUnshortenedTicker != nil {
-		a.batchWriterUnshortenedTicker.Stop()
-	}
-
-	// Shut down scheduler
-	a.l.Info("Stopping producer scheduler")
-	if err := a.producerScheduler.Shutdown(); err != nil {
-		stopErr = errors.Join(stopErr, fmt.Errorf("failed to shutdown producer scheduler: %w", err))
-	}
-
-	if stopErr != nil {
-		return stopErr
-	}
-
-	a.l.Info("Stopped gracefully")
-	return nil
-}
-
+// newTracerProvider creates a new OpenTelemetry provider
 func newTracerProvider(ctx context.Context, collectorAddr string) (*trace.TracerProvider, error) {
 	exporter, err := otlptracegrpc.New(ctx,
 		otlptracegrpc.WithInsecure(),

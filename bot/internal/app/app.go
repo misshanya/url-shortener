@@ -33,51 +33,29 @@ type App struct {
 	tracerProvider *trace.TracerProvider
 }
 
+// New creates and initializes a new instance of App
 func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 	a := &App{
 		cfg: cfg,
 		l:   l,
 	}
 
-	// Init tracing
-	tracerProvider, err := newTracerProvider(context.Background(), cfg.Tracing.CollectorAddr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create tracer provider: %w", err)
+	if err := a.initTracing(); err != nil {
+		return nil, err
 	}
-	a.tracerProvider = tracerProvider
-
 	tracer := a.tracerProvider.Tracer(serviceName)
 
-	// Init gRPC connection to the shortener service
-	grpcConn, err := grpc.NewClient(a.cfg.GRPCClient.ServerAddress,
-		grpc.WithTransportCredentials(
-			insecure.NewCredentials(),
-		),
-		grpc.WithStatsHandler(
-			otelgrpc.NewClientHandler(
-				otelgrpc.WithTracerProvider(a.tracerProvider),
-			),
-		),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to init gRPC connection to the shortener service: %w", err)
+	if err := a.initGRPCClient(); err != nil {
+		return nil, err
 	}
-	a.grpcConn = grpcConn
+	grpcClient := pb.NewURLShortenerServiceClient(a.grpcConn)
 
-	// Create gRPC client for the shortener service
-	grpcClient := pb.NewURLShortenerServiceClient(grpcConn)
-
-	// Init service
 	svc := service.New(grpcClient, cfg.Bot.PublicHost, a.l)
-
-	// Init handler
 	botHandler := handler.New(a.l, svc, tracer)
 
-	// Configure bot
 	opts := []bot.Option{
 		bot.WithDefaultHandler(botHandler.Default),
 	}
-
 	b, err := bot.New(cfg.Bot.Token, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create bot instance: %w", err)
@@ -87,11 +65,13 @@ func New(cfg *config.Config, l *slog.Logger) (*App, error) {
 	return a, nil
 }
 
+// Start performs a start of all functional services
 func (a *App) Start(ctx context.Context) {
 	a.l.Info("Starting bot")
 	a.b.Start(ctx)
 }
 
+// Stop performs a graceful shutdown for all components
 func (a *App) Stop(ctx context.Context) error {
 	a.l.Info("[!] Shutting down...")
 
@@ -115,6 +95,36 @@ func (a *App) Stop(ctx context.Context) error {
 	return nil
 }
 
+// initTracing sets up a new OpenTelemetry provider
+func (a *App) initTracing() error {
+	tracerProvider, err := newTracerProvider(context.Background(), a.cfg.Tracing.CollectorAddr)
+	if err != nil {
+		return fmt.Errorf("failed to create tracer provider: %w", err)
+	}
+	a.tracerProvider = tracerProvider
+	return nil
+}
+
+// initGRPCClient sets up a new gRPC connection to shortener service
+func (a *App) initGRPCClient() error {
+	grpcConn, err := grpc.NewClient(a.cfg.GRPCClient.ServerAddress,
+		grpc.WithTransportCredentials(
+			insecure.NewCredentials(),
+		),
+		grpc.WithStatsHandler(
+			otelgrpc.NewClientHandler(
+				otelgrpc.WithTracerProvider(a.tracerProvider),
+			),
+		),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to init gRPC connection to the shortener service: %w", err)
+	}
+	a.grpcConn = grpcConn
+	return nil
+}
+
+// newTracerProvider creates a new OpenTelemetry provider
 func newTracerProvider(ctx context.Context, collectorAddr string) (*trace.TracerProvider, error) {
 	exporter, err := otlptracegrpc.New(ctx,
 		otlptracegrpc.WithInsecure(),
